@@ -11,6 +11,7 @@ import {
   User,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   Sliders,
   Layers,
@@ -28,7 +29,13 @@ import {
   Globe,
   Eye,
   FileCode,
-  ShieldCheck
+  ShieldCheck,
+  Download,
+  Copy,
+  Smartphone,
+  Tablet,
+  Monitor,
+  RotateCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission, EvaluationRubric, Question } from '../types';
@@ -40,6 +47,7 @@ import {
   sendEmailViaGmail,
   getGmailAccessToken
 } from '../lib/gmail';
+import { seedSampleCandidates, fetchCandidateById } from '../lib/api';
 
 interface CreatorDashboardProps {
   candidates: CandidateSubmission[];
@@ -66,6 +74,16 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'evaluated'>('all');
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateSubmission | null>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
+  // Response viewing tabs inside modal
+  const [activePreviewCandidateTab, setActivePreviewCandidateTab] = useState<'mcqs' | 'website'>('mcqs');
+  const [mcqFilter, setMcqFilter] = useState<'all' | 'correct' | 'incorrect' | 'unanswered'>('all');
+  const [activeWebsiteViewMode, setActiveWebsiteViewMode] = useState<'preview' | 'prompt' | 'code'>('preview');
+  const [activeCodeSubTab, setActiveCodeSubTab] = useState<'html' | 'css' | 'js'>('html');
+  const [websiteViewport, setWebsiteViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [iframeKey, setIframeKey] = useState(0);
 
   // Gmail State
   const [gmailUser, setGmailUser] = useState<any>(auth.currentUser);
@@ -80,7 +98,6 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     );
     return () => unsub();
   }, []);
-  const [activePreviewCandidateTab, setActivePreviewCandidateTab] = useState<'mcqs' | 'website'>('mcqs');
 
   // Scoring Rubric State for the modal
   const [rubric, setRubric] = useState<{
@@ -120,7 +137,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     return 'D';
   };
 
-  const handleOpenEvaluationModal = (cand: CandidateSubmission) => {
+  const handleOpenEvaluationModal = async (cand: CandidateSubmission) => {
     setSelectedCandidate(cand);
 
     // Auto-compute auto-graded MCQ score (3 pts per question * 24 = 72 max)
@@ -153,6 +170,30 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         publishToLeaderboard: true
       });
     }
+
+    // Attempt on-demand refresh to ensure full answers if needed
+    if (!cand.answers || cand.answers.length === 0) {
+      const detailed = await fetchCandidateById(cand.id);
+      if (detailed && detailed.answers && detailed.answers.length > 0) {
+        setSelectedCandidate(detailed);
+      }
+    }
+  };
+
+  // Switch between candidates within modal
+  const handleSwitchCandidate = (direction: 'next' | 'prev') => {
+    if (!selectedCandidate) return;
+    const currentIdx = filteredCandidates.findIndex((c) => c.id === selectedCandidate.id);
+    if (currentIdx === -1) return;
+
+    let targetIdx = direction === 'next' ? currentIdx + 1 : currentIdx - 1;
+    if (targetIdx < 0) targetIdx = filteredCandidates.length - 1;
+    if (targetIdx >= filteredCandidates.length) targetIdx = 0;
+
+    const nextCand = filteredCandidates[targetIdx];
+    if (nextCand) {
+      handleOpenEvaluationModal(nextCand);
+    }
   };
 
   const handleRequestSubmitEvaluation = () => {
@@ -168,7 +209,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     if (!selectedCandidate) return;
     setIsSendingGmail(true);
 
-    const totalScore = rubric.mcqScore + rubric.websitePromptDesign + rubric.websitePromptFunctionality;
+    const calculatedTotalScore = rubric.mcqScore + rubric.websitePromptDesign + rubric.websitePromptFunctionality;
 
     // If Gmail is active, send live email
     if (sendViaGmailOption && gmailUser && getGmailAccessToken()) {
@@ -181,7 +222,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             
             <div style="background: #1e293b; padding: 18px; border-radius: 12px; text-align: center; margin: 20px 0; border: 1px solid #334155;">
               <span style="color: #38bdf8; font-size: 12px; font-weight: bold; text-transform: uppercase;">Evaluated Total Score</span>
-              <div style="font-size: 38px; font-weight: bold; color: #f43f5e; margin: 8px 0;">${totalScore} / 100</div>
+              <div style="font-size: 38px; font-weight: bold; color: #f43f5e; margin: 8px 0;">${calculatedTotalScore} / 100</div>
               <div style="color: #e2e8f0; font-size: 14px; font-weight: bold;">Badge: 🏆 ${rubric.badge}</div>
             </div>
 
@@ -196,7 +237,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
         await sendEmailViaGmail({
           to: selectedCandidate.details.email,
-          subject: `Official CS Assessment Scorecard: ${selectedCandidate.details.fullName} (${totalScore}/100)`,
+          subject: `Official CS Assessment Scorecard: ${selectedCandidate.details.fullName} (${calculatedTotalScore}/100)`,
           bodyHtml
         });
       } catch (err: any) {
@@ -229,6 +270,54 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     }
   };
 
+  // Seed sample candidates on demand
+  const handleSeedBatch = async () => {
+    setIsSeeding(true);
+    try {
+      await seedSampleCandidates();
+      onRefresh();
+      confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
+    } catch (err) {
+      console.warn('Seed error:', err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  // Export full cohort answers JSON
+  const handleExportCohort = () => {
+    const exportPayload = {
+      exportDate: new Date().toISOString(),
+      assessmentTitle: 'The Crucible • Tamil Nadu 11th & 12th CS Assessment',
+      totalCandidates: candidates.length,
+      candidates: candidates.map((c) => ({
+        id: c.id,
+        details: c.details,
+        status: c.status,
+        startedAt: c.startedAt,
+        submittedAt: c.submittedAt,
+        timeSpentSeconds: c.timeSpentSeconds,
+        evaluation: c.evaluation,
+        answersCount: c.answers?.length || 0,
+        answers: c.answers
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crucible-candidate-responses-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyText = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedNotification(label);
+    setTimeout(() => setCopiedNotification(null), 2000);
+  };
+
   // Metrics computation
   const totalCount = candidates.length;
   const pendingCount = candidates.filter((c) => c.status !== 'evaluated').length;
@@ -245,7 +334,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     const matchesSearch =
       cand.details.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cand.details.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cand.details.schoolName.toLowerCase().includes(searchQuery.toLowerCase());
+      (cand.details.schoolName && cand.details.schoolName.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
@@ -255,6 +344,25 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   });
 
   const q25Answer = selectedCandidate?.answers?.find((a) => a.questionId === 'q25');
+
+  // MCQ answer stats
+  const answeredMcqs = DEFAULT_QUESTIONS.slice(0, 24).map((q) => {
+    const ans = selectedCandidate?.answers?.find((a) => a.questionId === q.id);
+    const isAnswered = ans && ans.selectedOptionIndex !== undefined;
+    const isCorrect = isAnswered && ans?.selectedOptionIndex === q.correctOptionIndex;
+    return { q, ans, isAnswered, isCorrect };
+  });
+
+  const correctMcqsCount = answeredMcqs.filter((m) => m.isCorrect).length;
+  const incorrectMcqsCount = answeredMcqs.filter((m) => m.isAnswered && !m.isCorrect).length;
+  const unansweredMcqsCount = answeredMcqs.filter((m) => !m.isAnswered).length;
+
+  const filteredMcqs = answeredMcqs.filter((m) => {
+    if (mcqFilter === 'correct') return m.isCorrect;
+    if (mcqFilter === 'incorrect') return m.isAnswered && !m.isCorrect;
+    if (mcqFilter === 'unanswered') return !m.isAnswered;
+    return true;
+  });
 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8 flex-1">
@@ -266,28 +374,31 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             <span>The Crucible • Evaluator & Creator Console</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Tamil Nadu CS Assessment Evaluator
+            Tamil Nadu CS Candidate Response Center
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-            Review detailed candidate submissions across 24 C++/Python/SQL MCQs, inspect live rendered website prompt submissions, score rubrics, and trigger instant student score notification emails.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Access and inspect full candidate responses across all 24 C++/Python/SQL MCQs, explore Question 25 live interactive website builds, and evaluate candidates directly from this single screen.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-center">
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-center">
           <button
-            onClick={() => {
-              if (onOpenGoogleWorkspace) onOpenGoogleWorkspace('drive');
-              else if (onOpenEmailOutbox) onOpenEmailOutbox();
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-orbitron font-bold uppercase bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 shadow-md cyber-glow-cyan transition-all hover:scale-105"
+            onClick={handleExportCohort}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm transition-colors"
+            title="Download full candidate answers and evaluations JSON"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-            </svg>
-            <span>Google Workspace Suite</span>
+            <Download className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Export Responses</span>
+          </button>
+
+          <button
+            disabled={isSeeding}
+            onClick={handleSeedBatch}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 shadow-sm transition-colors"
+            title="Seed top sample CS scholars with complete answers"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <span>{isSeeding ? 'Seeding...' : 'Seed Sample Cohort'}</span>
           </button>
 
           <button
@@ -295,63 +406,47 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Sync Pipeline</span>
+            <span>Sync Live</span>
           </button>
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Total Candidates
-          </p>
-          <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">{totalCount}</span>
-            <span className="text-xs text-indigo-500 font-medium">Logged</span>
-          </div>
+      {/* 2. COHORT SUMMARY STATS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Candidates</span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{totalCount}</div>
+          <span className="text-[11px] text-indigo-600 dark:text-indigo-400">All submissions recorded</span>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-            Pending Grading
-          </p>
-          <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 font-mono">{pendingCount}</span>
-            <span className="text-xs text-amber-600 font-medium">Queue</span>
-          </div>
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Needs Evaluation</span>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{pendingCount}</div>
+          <span className="text-[11px] text-amber-500">Ready for review</span>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-            Graded & Scored
-          </p>
-          <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">{evaluatedCount}</span>
-            <span className="text-xs text-emerald-600 font-medium">Completed</span>
-          </div>
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Evaluated & Verified</span>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{evaluatedCount}</div>
+          <span className="text-[11px] text-emerald-500">Leaderboard published</span>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Average Score
-          </p>
-          <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono">{avgScore}</span>
-            <span className="text-xs text-slate-400 font-medium">/ 100</span>
-          </div>
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Cohort Average Score</span>
+          <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-1">{avgScore}/100</div>
+          <span className="text-[11px] text-cyan-500">State CS Benchmark</span>
         </div>
       </div>
 
-      {/* 2. FILTER & SEARCH CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+      {/* 3. SEARCH & FILTER BAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search candidate by student name, email, or school..."
+            placeholder="Search candidate by name, email, or school..."
             className="w-full pl-10 pr-4 py-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           />
         </div>
@@ -392,16 +487,25 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. CANDIDATES PIPELINE TABLE */}
+      {/* 4. CANDIDATES PIPELINE TABLE */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-slate-900/5 dark:shadow-black/40 overflow-hidden">
         {filteredCandidates.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">
-            No student submissions matching your search criteria.
+          <div className="py-16 text-center text-slate-400 text-sm space-y-3">
+            <p>No student submissions found matching your search.</p>
+            <button
+              onClick={handleSeedBatch}
+              className="px-4 py-2 rounded-2xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all inline-flex items-center gap-2"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Seed Sample CS Candidates</span>
+            </button>
           </div>
         ) : (
           <div className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
             {filteredCandidates.map((cand) => {
               const isGraded = cand.status === 'evaluated' && cand.evaluation;
+              const mcqAnsweredCount = cand.answers?.filter((a) => a.questionId.startsWith('q') && a.questionId !== 'q25' && a.selectedOptionIndex !== undefined).length || 0;
+              const hasQ25 = cand.answers?.some((a) => a.questionId === 'q25' && (a.websitePrompt || a.htmlCode));
 
               return (
                 <div
@@ -409,7 +513,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                   className="p-5 sm:p-6 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-base shrink-0 border ${
                       isGraded
                         ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/60'
                         : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/60'
@@ -417,7 +521,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                       {isGraded ? cand.evaluation!.totalScore : <Clock className="w-5 h-5" />}
                     </div>
 
-                    <div>
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-bold text-slate-900 dark:text-white">
                           {cand.details.fullName}
@@ -426,8 +530,8 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                           ({cand.details.email})
                         </span>
                         {isGraded && (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            Grade: {cand.evaluation!.grade}
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Grade: {cand.evaluation!.grade} • {cand.evaluation!.badge || 'Certified'}
                           </span>
                         )}
                         {cand.emailDispatched && (
@@ -438,12 +542,14 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap font-rajdhani">
-                        <span className="font-semibold text-cyan-400">
-                          {cand.details.role || 'CS Candidate'}
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                          {cand.details.schoolName || 'Tamil Nadu HSS'}
                         </span>
                         <span>•</span>
-                        <span>{cand.details.phone}</span>
+                        <span>{cand.details.standard || '12th Computer Science'}</span>
+                        <span>•</span>
+                        <span>Phone: {cand.details.phone}</span>
                         {cand.details.githubProfile && (
                           <>
                             <span>•</span>
@@ -451,32 +557,43 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                               href={cand.details.githubProfile.startsWith('http') ? cand.details.githubProfile : `https://${cand.details.githubProfile}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-cyan-400 hover:underline flex items-center gap-1 font-cyber-mono text-[11px]"
+                              className="text-cyan-400 hover:underline flex items-center gap-1 font-mono text-[11px]"
                             >
                               <span>GitHub</span>
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           </>
                         )}
-                        <span>•</span>
-                        <span>
-                          Submitted: {cand.submittedAt ? new Date(cand.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In progress'}
+                      </div>
+
+                      {/* Response summary pill */}
+                      <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                          📝 MCQs: {mcqAnsweredCount}/24 Answered
                         </span>
+                        <span className={`px-2 py-0.5 rounded-md font-medium ${
+                          hasQ25
+                            ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200/50 dark:border-cyan-800/50'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        }`}>
+                          🌐 Q25 Website: {hasQ25 ? 'Provided' : 'Pending'}
+                        </span>
+                        {cand.timeSpentSeconds && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                            ⏱️ Duration: {Math.floor(cand.timeSpentSeconds / 60)}m {cand.timeSpentSeconds % 60}s
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-center">
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                     <button
                       onClick={() => handleOpenEvaluationModal(cand)}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold transition-all hover:scale-105 shadow-sm ${
-                        isGraded
-                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 border border-slate-200 dark:border-slate-700'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/20'
-                      }`}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all hover:scale-105"
                     >
-                      <Sliders className="w-3.5 h-3.5" />
-                      <span>{isGraded ? 'Review / Re-Score' : 'Evaluate & Score'}</span>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Inspect Responses & Score</span>
                     </button>
                   </div>
                 </div>
@@ -486,10 +603,10 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         )}
       </div>
 
-      {/* 4. DETAILED EVALUATION & SCORING MODAL */}
+      {/* 5. MULTI-CANDIDATE DETAILED RESPONSE & EVALUATION MODAL */}
       <AnimatePresence>
         {selectedCandidate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -502,20 +619,23 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
               initial={{ opacity: 0, scale: 0.96, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 15 }}
-              className="relative w-full max-w-5xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800/80 shadow-2xl overflow-y-auto space-y-6 text-slate-900 dark:text-slate-100"
+              className="relative w-full max-w-5xl max-h-[92vh] bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-8 border border-slate-200/80 dark:border-slate-800/80 shadow-2xl overflow-y-auto space-y-6 text-slate-900 dark:text-slate-100"
             >
-              {/* Modal Header */}
-              <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
-                <div>
+              {/* Modal Header with Multi-Candidate Switcher Navigation */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                      Evaluating: {selectedCandidate.details.fullName}
+                      Candidate: {selectedCandidate.details.fullName}
                     </h2>
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 font-cyber-mono font-semibold border border-cyan-500/40">
-                      {selectedCandidate.details.role || 'Candidate'}
+                      {selectedCandidate.details.standard || '12th CS'}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-medium">
+                      {selectedCandidate.details.schoolName || 'Tamil Nadu HSS'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 font-rajdhani flex items-center gap-3 flex-wrap">
+                  <p className="text-xs text-slate-400 font-rajdhani flex items-center gap-3 flex-wrap">
                     <span>Email: <strong className="text-white">{selectedCandidate.details.email}</strong></span>
                     <span>•</span>
                     <span>Phone: <strong className="text-white">{selectedCandidate.details.phone}</strong></span>
@@ -528,121 +648,419 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setSelectedCandidate(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                {/* Candidate Switcher Dropdown & Controls */}
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
+                    <button
+                      onClick={() => handleSwitchCandidate('prev')}
+                      className="p-1.5 rounded-xl hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                      title="Previous Candidate"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <select
+                      value={selectedCandidate.id}
+                      onChange={(e) => {
+                        const target = filteredCandidates.find((c) => c.id === e.target.value);
+                        if (target) handleOpenEvaluationModal(target);
+                      }}
+                      className="bg-transparent text-xs font-semibold px-2 py-1 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    >
+                      {filteredCandidates.map((c, i) => (
+                        <option key={c.id} value={c.id} className="dark:bg-slate-900">
+                          {i + 1}. {c.details.fullName} ({c.evaluation?.totalScore ? `${c.evaluation.totalScore} pts` : 'Pending'})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={() => handleSwitchCandidate('next')}
+                      className="p-1.5 rounded-xl hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                      title="Next Candidate"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedCandidate(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* TABS: MCQS vs QUESTION 25 WEBSITE */}
-              <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <button
-                  onClick={() => setActivePreviewCandidateTab('mcqs')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                    activePreviewCandidateTab === 'mcqs'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <Code2 className="w-4 h-4" />
-                  <span>24 Code MCQs Breakdown</span>
-                </button>
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActivePreviewCandidateTab('mcqs')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                      activePreviewCandidateTab === 'mcqs'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Code2 className="w-4 h-4" />
+                    <span>24 Code MCQs ({correctMcqsCount * 3}/72 pts)</span>
+                  </button>
 
-                <button
-                  onClick={() => setActivePreviewCandidateTab('website')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                    activePreviewCandidateTab === 'website'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>Question 25 Website Build (Live Render)</span>
-                </button>
+                  <button
+                    onClick={() => setActivePreviewCandidateTab('website')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                      activePreviewCandidateTab === 'website'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>Question 25 Website Build</span>
+                  </button>
+                </div>
+
+                {copiedNotification && (
+                  <span className="text-xs text-emerald-500 font-semibold flex items-center gap-1 animate-fade-in">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{copiedNotification} copied!</span>
+                  </span>
+                )}
               </div>
 
-              {/* VIEW 1: 24 MCQS INSPECTION */}
+              {/* VIEW 1: 24 MCQS INSPECTION & BREAKDOWN */}
               {activePreviewCandidateTab === 'mcqs' && (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                  {DEFAULT_QUESTIONS.slice(0, 24).map((q, idx) => {
-                    const ans = selectedCandidate.answers?.find((a) => a.questionId === q.id);
-                    const isCorrect = ans?.selectedOptionIndex === q.correctOptionIndex;
-
-                    return (
-                      <div
-                        key={`eval-mcq-${q.id}`}
-                        className={`p-3.5 rounded-2xl border text-xs space-y-2 ${
-                          isCorrect
-                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40'
-                            : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/60 dark:border-rose-800/40'
+                <div className="space-y-4">
+                  {/* Filter Sub-Bar */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2 text-xs font-medium">
+                      <span className="text-slate-400">Filter MCQs:</span>
+                      <button
+                        onClick={() => setMcqFilter('all')}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          mcqFilter === 'all'
+                            ? 'bg-indigo-600 text-white font-bold'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            Q{idx + 1}: {q.title} ({q.topic})
-                          </span>
-                          <span className={`font-semibold flex items-center gap-1 ${isCorrect ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {isCorrect ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
-                            {isCorrect ? '+3 Points' : '0 Points'}
-                          </span>
-                        </div>
+                        All (24)
+                      </button>
+                      <button
+                        onClick={() => setMcqFilter('correct')}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          mcqFilter === 'correct'
+                            ? 'bg-emerald-600 text-white font-bold'
+                            : 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        Correct ({correctMcqsCount})
+                      </button>
+                      <button
+                        onClick={() => setMcqFilter('incorrect')}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          mcqFilter === 'incorrect'
+                            ? 'bg-rose-600 text-white font-bold'
+                            : 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        Incorrect ({incorrectMcqsCount})
+                      </button>
+                      <button
+                        onClick={() => setMcqFilter('unanswered')}
+                        className={`px-2.5 py-1 rounded-lg transition-colors ${
+                          mcqFilter === 'unanswered'
+                            ? 'bg-slate-700 text-white font-bold'
+                            : 'bg-white dark:bg-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Unanswered ({unansweredMcqsCount})
+                      </button>
+                    </div>
 
-                        {q.codeSnippet && (
-                          <pre className="p-2.5 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[11px] overflow-x-auto max-h-28">
-                            <code>{q.codeSnippet}</code>
-                          </pre>
-                        )}
+                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Auto-Graded MCQ Score: <span className="text-indigo-600 dark:text-indigo-400 font-mono text-sm">{correctMcqsCount * 3} / 72</span> Points
+                    </div>
+                  </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-400 block">Candidate's Choice:</span>
-                            <span className={isCorrect ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                              {ans?.selectedOptionIndex !== undefined && q.options
-                                ? q.options[ans.selectedOptionIndex]
-                                : 'Unanswered'}
-                            </span>
-                          </div>
-
-                          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-400 block">Correct Answer:</span>
-                            <span className="text-emerald-600 font-bold">
-                              {q.correctOptionIndex !== undefined && q.options ? q.options[q.correctOptionIndex] : ''}
-                            </span>
-                          </div>
-                        </div>
+                  {/* Question Cards List */}
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {filteredMcqs.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        No questions in this filter category.
                       </div>
-                    );
-                  })}
+                    ) : (
+                      filteredMcqs.map(({ q, ans, isAnswered, isCorrect }) => {
+                        return (
+                          <div
+                            key={`eval-mcq-${q.id}`}
+                            className={`p-4 rounded-2xl border text-xs space-y-2.5 ${
+                              !isAnswered
+                                ? 'bg-slate-50/60 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800'
+                                : isCorrect
+                                ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40'
+                                : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/60 dark:border-rose-800/40'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  Q{q.qNumber}: {q.title}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
+                                  {q.syllabusStandard} • {q.topic}
+                                </span>
+                              </div>
+                              <span className={`font-semibold flex items-center gap-1 ${
+                                !isAnswered
+                                  ? 'text-slate-400'
+                                  : isCorrect
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-rose-600 dark:text-rose-400'
+                              }`}>
+                                {isCorrect ? <CheckCircle2 className="w-3.5 h-3.5" /> : !isAnswered ? <Clock className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                                {isCorrect ? `+${q.points || 3} Points` : isAnswered ? '0 Points' : 'Unanswered (0 pts)'}
+                              </span>
+                            </div>
+
+                            <p className="text-slate-600 dark:text-slate-300 text-[11px]">
+                              {q.description}
+                            </p>
+
+                            {q.codeSnippet && (
+                              <pre className="p-2.5 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[11px] overflow-x-auto max-h-28">
+                                <code>{q.codeSnippet}</code>
+                              </pre>
+                            )}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">Candidate's Selected Option:</span>
+                                <span className={`font-bold mt-0.5 block ${
+                                  !isAnswered
+                                    ? 'text-slate-400'
+                                    : isCorrect
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-rose-600 dark:text-rose-400'
+                                }`}>
+                                  {ans?.selectedOptionIndex !== undefined && q.options
+                                    ? q.options[ans.selectedOptionIndex]
+                                    : 'No option chosen'}
+                                </span>
+                              </div>
+
+                              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">Correct Board Key:</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold mt-0.5 block">
+                                  {q.correctOptionIndex !== undefined && q.options ? q.options[q.correctOptionIndex] : ''}
+                                </span>
+                              </div>
+                            </div>
+
+                            {q.explanation && (
+                              <div className="p-2 rounded-lg bg-slate-100/60 dark:bg-slate-800/40 text-[10px] text-slate-500 dark:text-slate-400">
+                                <strong>Explanation:</strong> {q.explanation}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* VIEW 2: QUESTION 25 WEBSITE LIVE RENDER & PROMPT */}
+              {/* VIEW 2: QUESTION 25 WEBSITE LIVE RENDER, PROMPT & CODE */}
               {activePreviewCandidateTab === 'website' && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-xs space-y-1.5">
-                    <span className="font-bold text-cyan-300 font-cyber-mono flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-cyan-400" />
-                      <span>Candidate's Website Prompt (Question 25):</span>
-                    </span>
-                    <p className="text-slate-200 font-rajdhani text-sm leading-relaxed whitespace-pre-wrap bg-slate-950 p-3 rounded-xl border border-cyan-500/20">
-                      {q25Answer?.websitePrompt || 'No prompt provided by candidate.'}
-                    </p>
+                  {/* Sub-Tabs: Live Render vs Candidate Prompt vs Source Code */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setActiveWebsiteViewMode('preview')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                          activeWebsiteViewMode === 'preview'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        Interactive Preview
+                      </button>
+                      <button
+                        onClick={() => setActiveWebsiteViewMode('prompt')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                          activeWebsiteViewMode === 'prompt'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        Candidate's Prompt
+                      </button>
+                      <button
+                        onClick={() => setActiveWebsiteViewMode('code')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                          activeWebsiteViewMode === 'code'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        Code Inspector
+                      </button>
+                    </div>
+
+                    {/* Viewport switcher when in preview */}
+                    {activeWebsiteViewMode === 'preview' && (
+                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                        <button
+                          onClick={() => setWebsiteViewport('desktop')}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            websiteViewport === 'desktop' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Desktop View (100%)"
+                        >
+                          <Monitor className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setWebsiteViewport('tablet')}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            websiteViewport === 'tablet' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Tablet View (768px)"
+                        >
+                          <Tablet className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setWebsiteViewport('mobile')}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            websiteViewport === 'mobile' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Mobile View (375px)"
+                        >
+                          <Smartphone className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setIframeKey((k) => k + 1)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors"
+                          title="Reload Sandbox"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-white shadow-md">
-                    <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 font-mono">
-                      <span>Candidate's Theme Website Live Render</span>
-                      <span className="text-cyan-400 font-semibold font-cyber-mono">Live Sandbox</span>
+                  {/* Mode 1: Interactive Sandbox */}
+                  {activeWebsiteViewMode === 'preview' && (
+                    <div className="rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-950 shadow-lg flex flex-col items-center">
+                      <div className="w-full px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                          <span>Candidate's Live Sandbox Output</span>
+                        </span>
+                        <span className="text-cyan-400 font-cyber-mono text-[11px]">
+                          Viewport: {websiteViewport === 'desktop' ? '100% Fluid' : websiteViewport === 'tablet' ? '768px' : '375px'}
+                        </span>
+                      </div>
+
+                      <div className="w-full flex justify-center p-2 bg-slate-900/50">
+                        <iframe
+                          key={iframeKey}
+                          title="Candidate Website Live Preview"
+                          srcDoc={q25Answer?.htmlCode || DEFAULT_QUESTIONS[24].websiteTemplate?.html || ''}
+                          sandbox="allow-scripts"
+                          style={{
+                            width: websiteViewport === 'desktop' ? '100%' : websiteViewport === 'tablet' ? '768px' : '375px',
+                            maxWidth: '100%',
+                            height: '380px'
+                          }}
+                          className="border-0 bg-white rounded-xl shadow-md transition-all duration-300"
+                        />
+                      </div>
                     </div>
-                    <iframe
-                      title="Candidate Website Live Preview"
-                      srcDoc={q25Answer?.htmlCode || DEFAULT_QUESTIONS[24].websiteTemplate?.html || ''}
-                      sandbox="allow-scripts"
-                      className="w-full h-[380px] border-0 bg-white"
-                    />
-                  </div>
+                  )}
+
+                  {/* Mode 2: Candidate's Prompt */}
+                  {activeWebsiteViewMode === 'prompt' && (
+                    <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-cyan-300 font-cyber-mono flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-cyan-400" />
+                          <span>Candidate's Question 25 Prompt Specification:</span>
+                        </span>
+                        {q25Answer?.websitePrompt && (
+                          <button
+                            onClick={() => handleCopyText(q25Answer.websitePrompt || '', 'Prompt')}
+                            className="px-2.5 py-1 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 text-[11px] flex items-center gap-1 font-semibold transition-colors"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Prompt</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-slate-200 font-rajdhani text-sm leading-relaxed whitespace-pre-wrap bg-slate-950 p-4 rounded-xl border border-cyan-500/20">
+                        {q25Answer?.websitePrompt || 'No prompt text submitted by candidate.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mode 3: Source Code Inspector */}
+                  {activeWebsiteViewMode === 'code' && (
+                    <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 space-y-2">
+                      <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setActiveCodeSubTab('html')}
+                            className={`px-2.5 py-1 rounded-md font-mono text-[11px] ${
+                              activeCodeSubTab === 'html' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            HTML Code
+                          </button>
+                          <button
+                            onClick={() => setActiveCodeSubTab('css')}
+                            className={`px-2.5 py-1 rounded-md font-mono text-[11px] ${
+                              activeCodeSubTab === 'css' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            CSS Code
+                          </button>
+                          <button
+                            onClick={() => setActiveCodeSubTab('js')}
+                            className={`px-2.5 py-1 rounded-md font-mono text-[11px] ${
+                              activeCodeSubTab === 'js' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            JavaScript Code
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const code =
+                              activeCodeSubTab === 'html'
+                                ? q25Answer?.htmlCode || ''
+                                : activeCodeSubTab === 'css'
+                                ? q25Answer?.cssCode || ''
+                                : q25Answer?.jsCode || '';
+                            handleCopyText(code, activeCodeSubTab.toUpperCase());
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] flex items-center gap-1 font-semibold transition-colors"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy Code</span>
+                        </button>
+                      </div>
+
+                      <pre className="p-4 text-emerald-300 font-mono text-xs overflow-x-auto max-h-80 leading-relaxed">
+                        <code>
+                          {activeCodeSubTab === 'html'
+                            ? q25Answer?.htmlCode || DEFAULT_QUESTIONS[24].websiteTemplate?.html || 'No HTML code'
+                            : activeCodeSubTab === 'css'
+                            ? q25Answer?.cssCode || '/* Custom CSS rules */'
+                            : q25Answer?.jsCode || '// JavaScript logic'}
+                        </code>
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -728,9 +1146,11 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                       onChange={(e) => setRubric({ ...rubric, badge: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
                     >
-                      <option value="Master CS Scholar">🏆 Master CS Scholar (State Rank)</option>
+                      <option value="State Rank Gold">🏆 State Rank Gold (100 pts)</option>
+                      <option value="Master CS Scholar">🌟 Master CS Scholar</option>
                       <option value="Python & C++ Pro">⚡ Python & C++ Pro</option>
-                      <option value="Distinction Scholar">🌟 Distinction Scholar</option>
+                      <option value="Silver Scholar">🥈 Silver Scholar</option>
+                      <option value="Bronze Scholar">🥉 Bronze Scholar</option>
                       <option value="Certified TN CS Scholar">📜 Certified TN CS Scholar</option>
                     </select>
                   </div>
@@ -837,7 +1257,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                     onClick={() => setSelectedCandidate(null)}
                     className="px-4 py-2.5 rounded-2xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 transition-colors"
                   >
-                    Cancel
+                    Close
                   </button>
 
                   <button

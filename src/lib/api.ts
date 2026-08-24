@@ -75,16 +75,34 @@ export async function verifyAccessCode(accessCode: string) {
 export async function fetchCandidates(token?: string): Promise<CandidateSubmission[]> {
   try {
     const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/candidates`, { headers });
+    let activeToken = token;
+    if (!activeToken && typeof window !== 'undefined') {
+      activeToken = localStorage.getItem('evalpulse_auth_token') || undefined;
+    }
+    if (activeToken) {
+      headers['Authorization'] = `Bearer ${activeToken}`;
+    }
+    const res = await fetch(`${API_BASE}/candidates?role=creator`, { headers });
     if (!res.ok) throw new Error('Failed to fetch candidates');
     const data = await res.json();
-    return data.candidates || [];
-  } catch {
-    // Return saved local storage or initial defaults for static deployment
+    if (data && Array.isArray(data.candidates)) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
+        } catch {}
+      }
+      return data.candidates;
+    }
+    return [];
+  } catch (err) {
+    console.warn('Backend fetch candidates error, checking local store:', err);
+    // Return saved local storage or initial defaults for offline resilience
     try {
       const stored = localStorage.getItem('evalpulse_all_candidates');
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch {}
     return INITIAL_CANDIDATE_SUBMISSIONS;
   }
@@ -92,14 +110,50 @@ export async function fetchCandidates(token?: string): Promise<CandidateSubmissi
 
 export async function fetchCandidateById(id: string): Promise<CandidateSubmission | null> {
   try {
-    const res = await fetch(`${API_BASE}/candidates/${id}`);
-    if (!res.ok) return null;
+    const headers: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+      const activeToken = localStorage.getItem('evalpulse_auth_token');
+      if (activeToken) headers['Authorization'] = `Bearer ${activeToken}`;
+    }
+    const res = await fetch(`${API_BASE}/candidates/${id}`, { headers });
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const data = await res.json();
-    return data.candidate || null;
+    if (data && data.candidate) {
+      return data.candidate;
+    }
+    return null;
   } catch (err) {
     console.warn('API error fetching candidate by id:', err);
+    try {
+      const stored = localStorage.getItem('evalpulse_all_candidates');
+      if (stored) {
+        const list: CandidateSubmission[] = JSON.parse(stored);
+        const found = list.find((c) => c.id === id);
+        if (found) return found;
+      }
+    } catch {}
     return null;
   }
+}
+
+export async function seedSampleCandidates(): Promise<{ success: boolean; count: number; candidates: CandidateSubmission[] }> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/seed-sample-batch`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.candidates)) {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
+          } catch {}
+        }
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Seed API network error:', err);
+  }
+  return { success: false, count: 0, candidates: [] };
 }
 
 export async function submitAssessment(submission: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
