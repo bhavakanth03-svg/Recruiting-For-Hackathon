@@ -22,6 +22,13 @@ import {
   subscribeToRealTimeEvents,
   seedSampleStateRankCandidates
 } from './lib/api';
+import {
+  initSupabaseSync,
+  broadcastCandidateSubmissionViaSupabase,
+  broadcastCandidateEvaluationViaSupabase,
+  requestSupabaseSnapshot,
+  sendSupabaseSnapshot
+} from './lib/supabase';
 import { INITIAL_CANDIDATE_SUBMISSIONS, INITIAL_EMAIL_NOTIFICATIONS } from './data/defaultData';
 import { Sparkles, Shield, UserCheck, Trophy, ArrowRight, CheckCircle2, Lock, Flame, Phone, User } from 'lucide-react';
 
@@ -217,6 +224,70 @@ export default function App() {
     };
   }, [currentCandidateSubmission]);
 
+  // Supabase Real-Time Multi-Device Cloud Synchronization
+  useEffect(() => {
+    initSupabaseSync({
+      role: currentRole === 'creator' ? 'creator' : 'candidate',
+      onCandidateUpdated: (incoming) => {
+        if (!incoming || !incoming.id) return;
+        setCandidates((prev) => {
+          const idx = prev.findIndex((c) => c.id === incoming.id || (c.details?.email && incoming.details?.email && c.details.email.toLowerCase() === incoming.details.email.toLowerCase()));
+          let updated: CandidateSubmission[];
+          if (idx >= 0) {
+            updated = [...prev];
+            updated[idx] = {
+              ...updated[idx],
+              ...incoming,
+              details: {
+                ...updated[idx].details,
+                ...(incoming.details || {})
+              }
+            };
+          } else {
+            updated = [incoming, ...prev];
+          }
+          try {
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+
+        if (incoming.status === 'submitted') {
+          addToast('notification', 'Supabase Cloud Sync: New Submission', `${incoming.details?.fullName || 'Candidate'} submitted test.`);
+        }
+
+        // If this device is that candidate, update active state
+        if (currentCandidateSubmission && (currentCandidateSubmission.id === incoming.id || currentCandidateSubmission.details.email === incoming.details.email)) {
+          setCurrentCandidateSubmission(incoming);
+        }
+      },
+      onSnapshotReceived: (cloudList) => {
+        if (Array.isArray(cloudList) && cloudList.length > 0) {
+          setCandidates((prev) => {
+            const map = new Map<string, CandidateSubmission>();
+            prev.forEach((c) => map.set(c.id, c));
+            cloudList.forEach((c) => {
+              const existing = map.get(c.id);
+              if (existing) {
+                map.set(c.id, { ...existing, ...c, details: { ...existing.details, ...c.details } });
+              } else {
+                map.set(c.id, c);
+              }
+            });
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      }
+    });
+
+    // Request snapshot on launch
+    requestSupabaseSnapshot();
+  }, [currentRole, currentCandidateSubmission]);
+
   // Role Authentication Handler
   const handleAuthenticate = async (code: string) => {
     const res = await verifyAccessCode(code);
@@ -281,6 +352,10 @@ export default function App() {
         localStorage.removeItem('evalpulse_time_remaining');
 
         setCandidates((prev) => [res.candidate!, ...prev.filter((c) => c.id !== res.candidate!.id)]);
+        
+        // Broadcast immediately to Supabase Cloud for all cross-device evaluators
+        broadcastCandidateSubmissionViaSupabase(res.candidate);
+
         addToast('success', 'Assessment Submitted!', 'Your answers have been recorded. You can now view your post-submission Candidate Home.');
         setActiveView('home');
       } else {
@@ -308,6 +383,9 @@ export default function App() {
         setCandidates((prev) =>
           prev.map((c) => (c.id === candidateId ? res.candidate : c))
         );
+
+        // Broadcast evaluation immediately via Supabase Cloud
+        broadcastCandidateEvaluationViaSupabase(res.candidate);
 
         if (res.emailNotification) {
           setEmails((prev) => [res.emailNotification, ...prev]);

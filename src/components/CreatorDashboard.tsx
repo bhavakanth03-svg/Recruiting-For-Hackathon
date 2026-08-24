@@ -49,6 +49,7 @@ import {
   getGmailAccessToken
 } from '../lib/gmail';
 import { seedSampleCandidates, fetchCandidateById } from '../lib/api';
+import { SUPABASE_URL, requestSupabaseSnapshot, sendSupabaseSnapshot } from '../lib/supabase';
 
 interface CreatorDashboardProps {
   candidates: CandidateSubmission[];
@@ -445,6 +446,37 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Evaluated & Verified</span>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{evaluatedCount}</div>
           <span className="text-[11px] text-emerald-500">Leaderboard published</span>
+        </div>
+      </div>
+
+      {/* 2.5 SUPABASE CLOUD MULTI-DEVICE SYNC BANNER */}
+      <div className="p-4 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 dark:border-emerald-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+            <Radio className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900 dark:text-white">Supabase Cloud Realtime Active</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500 text-white">LIVE 2-WAY SYNC</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+              Connected Project: <code className="text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">{SUPABASE_URL}</code>. Responses from all student devices synchronize across devices instantly.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => {
+              requestSupabaseSnapshot();
+              sendSupabaseSnapshot(candidates);
+              onRefresh();
+            }}
+            className="px-3.5 py-2 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Force Cloud Realtime Sync</span>
+          </button>
         </div>
       </div>
 

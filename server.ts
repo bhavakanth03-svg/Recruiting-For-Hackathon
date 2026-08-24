@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import {
   CREATOR_ACCESS_CODE,
   CANDIDATE_ACCESS_CODE,
@@ -10,6 +11,18 @@ import {
   DEFAULT_QUESTIONS
 } from './src/data/defaultData.ts';
 import { CandidateSubmission, CandidateAnswer, EmailNotification, LeaderboardEntry, ServerEvent, EvaluationRubric } from './src/types.ts';
+
+// Supabase Cloud Project Configuration for cross-device real-time sync
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bgiejmsrrajbqjltvmrd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_Is7RYdS71KAbQdRiMBRyZg_NdTcXSAb';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  realtime: {
+    params: {
+      eventsPerSecond: 20
+    }
+  }
+});
 
 const app = express();
 const PORT = 3000;
@@ -290,7 +303,91 @@ let candidates: CandidateSubmission[] = loadSavedCandidates();
 let emailNotifications: EmailNotification[] = [...INITIAL_EMAIL_NOTIFICATIONS];
 let sseClients: express.Response[] = [];
 
-// Helper to broadcast real-time events to all active sessions
+// Supabase Global Realtime Channel for Multi-Device Cloud Bridging
+const SUPABASE_CHANNEL_NAME = 'evalpulse-crucible-sync';
+let supabaseServerChannel: RealtimeChannel | null = null;
+
+function initServerSupabaseSync() {
+  try {
+    supabaseServerChannel = supabase.channel(SUPABASE_CHANNEL_NAME, {
+      config: { broadcast: { ack: true } }
+    });
+
+    supabaseServerChannel
+      .on('broadcast', { event: 'CANDIDATE_PROGRESS' }, (payload) => {
+        if (payload?.payload?.candidate) {
+          mergeCandidateFromCloud(payload.payload.candidate);
+        }
+      })
+      .on('broadcast', { event: 'CANDIDATE_SUBMITTED' }, (payload) => {
+        if (payload?.payload?.candidate) {
+          mergeCandidateFromCloud(payload.payload.candidate);
+        }
+      })
+      .on('broadcast', { event: 'CANDIDATE_EVALUATED' }, (payload) => {
+        if (payload?.payload?.candidate) {
+          mergeCandidateFromCloud(payload.payload.candidate);
+        }
+      })
+      .on('broadcast', { event: 'REQUEST_SYNC' }, async () => {
+        if (supabaseServerChannel && candidates.length > 0) {
+          try {
+            await supabaseServerChannel.send({
+              type: 'broadcast',
+              event: 'SYNC_SNAPSHOT',
+              payload: {
+                candidates,
+                timestamp: new Date().toISOString()
+              }
+            });
+          } catch {}
+        }
+      })
+      .subscribe((status) => {
+        console.log(`[Supabase Server Realtime] Status: ${status} on ${SUPABASE_URL}`);
+      });
+  } catch (err) {
+    console.warn('[Supabase Server Realtime] Failed to initialize:', err);
+  }
+}
+
+function mergeCandidateFromCloud(incoming: CandidateSubmission) {
+  if (!incoming || !incoming.id) return;
+  const existingIdx = candidates.findIndex((c) => 
+    c.id === incoming.id ||
+    (c.details?.email && incoming.details?.email && c.details.email.toLowerCase() === incoming.details.email.toLowerCase())
+  );
+
+  if (existingIdx >= 0) {
+    // Merge
+    candidates[existingIdx] = {
+      ...candidates[existingIdx],
+      ...incoming,
+      details: {
+        ...candidates[existingIdx].details,
+        ...(incoming.details || {})
+      },
+      answers: incoming.answers !== undefined ? incoming.answers : candidates[existingIdx].answers,
+      evaluation: incoming.evaluation || candidates[existingIdx].evaluation
+    };
+  } else {
+    candidates.unshift(incoming);
+  }
+
+  saveCandidatesToDisk(candidates);
+
+  // Broadcast to local SSE stream
+  broadcastEvent('CANDIDATE_PROGRESS_UPDATED', {
+    candidateId: incoming.id,
+    candidateName: incoming.details?.fullName,
+    status: incoming.status,
+    timestamp: new Date().toISOString()
+  });
+}
+
+initServerSupabaseSync();
+
+// Helper to broadcast real-time events to all active sessions & Supabase Cloud
 function broadcastEvent(type: ServerEvent['type'], data: any) {
   const eventPayload: ServerEvent = {
     type,
@@ -305,6 +402,40 @@ function broadcastEvent(type: ServerEvent['type'], data: any) {
       // Ignored if socket closed
     }
   });
+
+  // Also broadcast to Supabase Cloud Channel for all devices
+  if (supabaseServerChannel) {
+    try {
+      if (type === 'CANDIDATE_SUBMITTED' && data?.candidateId) {
+        const fullCandidate = candidates.find((c) => c.id === data.candidateId);
+        if (fullCandidate) {
+          supabaseServerChannel.send({
+            type: 'broadcast',
+            event: 'CANDIDATE_SUBMITTED',
+            payload: { candidate: fullCandidate }
+          });
+        }
+      } else if (type === 'CANDIDATE_PROGRESS_UPDATED' && data?.candidateId) {
+        const fullCandidate = candidates.find((c) => c.id === data.candidateId);
+        if (fullCandidate) {
+          supabaseServerChannel.send({
+            type: 'broadcast',
+            event: 'CANDIDATE_PROGRESS',
+            payload: { candidate: fullCandidate }
+          });
+        }
+      } else if (type === 'CANDIDATE_EVALUATED' && data?.candidateId) {
+        const fullCandidate = candidates.find((c) => c.id === data.candidateId);
+        if (fullCandidate) {
+          supabaseServerChannel.send({
+            type: 'broadcast',
+            event: 'CANDIDATE_EVALUATED',
+            payload: { candidate: fullCandidate }
+          });
+        }
+      }
+    } catch {}
+  }
 }
 
 // 1. Real-Time SSE Stream Endpoint

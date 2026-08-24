@@ -29,9 +29,10 @@ import {
   Briefcase,
   GitBranch
 } from 'lucide-react';
-import { CandidateDetails, CandidateAnswer, Question } from '../types';
+import { CandidateDetails, CandidateAnswer, Question, CandidateSubmission } from '../types';
 import { DEFAULT_QUESTIONS, CANDIDATE_ACCESS_CODE, CREATOR_ACCESS_CODE } from '../data/defaultData';
 import { verifyAccessCode, syncCandidateProgress } from '../lib/api';
+import { broadcastCandidateProgressViaSupabase, broadcastCandidateSubmissionViaSupabase } from '../lib/supabase';
 
 interface CandidateAssessmentProps {
   initialDetails?: CandidateDetails;
@@ -366,27 +367,33 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     setStep('testing');
 
     // Instantly sync candidate registration across all devices so creator dashboard immediately sees the student
-    syncCandidateProgress({
+    const progressPayload: Partial<CandidateSubmission> = {
       id: candidateId,
+      candidateCode: 'CANDIDATE-2025',
       details,
       status: 'in_progress',
-      answers: Object.values(answers),
+      answers: Object.values(answers) as CandidateAnswer[],
       timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining,
       startedAt: new Date().toISOString()
-    });
+    };
+    syncCandidateProgress(progressPayload);
+    broadcastCandidateProgressViaSupabase(progressPayload);
   };
 
-  // Real-time live auto-sync to server across devices during testing
+  // Real-time live auto-sync to server & Supabase Cloud across devices during testing
   useEffect(() => {
     if (step !== 'testing' || !details.fullName) return;
     const timer = setTimeout(() => {
-      syncCandidateProgress({
+      const payload: Partial<CandidateSubmission> = {
         id: candidateId,
+        candidateCode: 'CANDIDATE-2025',
         details,
         status: 'in_progress',
-        answers: Object.values(answers),
+        answers: Object.values(answers) as CandidateAnswer[],
         timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining
-      });
+      };
+      syncCandidateProgress(payload);
+      broadcastCandidateProgressViaSupabase(payload);
     }, 1200);
     return () => clearTimeout(timer);
   }, [answers, details, step, candidateId, timeRemaining]);
