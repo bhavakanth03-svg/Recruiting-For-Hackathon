@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, UserCheck, KeyRound, ArrowRight, Eye, EyeOff, AlertCircle, X, Terminal, Lock, Cpu, Sparkles, Copy, Check } from 'lucide-react';
+import { Shield, UserCheck, KeyRound, ArrowRight, Eye, EyeOff, AlertCircle, X, Terminal, Lock, Cpu, Sparkles } from 'lucide-react';
 import { UserRole } from '../types';
-import { CREATOR_ACCESS_CODE, CANDIDATE_ACCESS_CODE } from '../data/defaultData';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -164,24 +163,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthe
                   className="absolute right-3.5 top-3.5 text-slate-400 hover:text-cyan-300 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-
-              {/* Quick Preset Access Code Assist */}
-              <div className="mt-2 flex items-center justify-between text-[11px] font-cyber-mono text-slate-400">
-                <span>Default {activeTab === 'candidate' ? 'Student' : 'Evaluator'} Key:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const codeToSet = activeTab === 'candidate' ? CANDIDATE_ACCESS_CODE : CREATOR_ACCESS_CODE;
-                    setAccessCode(codeToSet);
-                    setErrorMessage('');
-                  }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-cyan-950 border border-slate-700 hover:border-cyan-500/50 text-cyan-300 transition-all font-bold"
-                  title="Click to autofill"
-                >
-                  <code>{activeTab === 'candidate' ? CANDIDATE_ACCESS_CODE : CREATOR_ACCESS_CODE}</code>
-                  <span className="text-[9px] text-slate-400">(use)</span>
                 </button>
               </div>
             </div>

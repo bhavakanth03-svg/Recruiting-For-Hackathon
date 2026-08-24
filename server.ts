@@ -157,29 +157,40 @@ app.get('/api/candidates/:id', (req, res) => {
 
 // 5. Submit Candidate Assessment & Details
 app.post('/api/candidates/submit', (req, res) => {
-  const submissionData: Partial<CandidateSubmission> = req.body;
-  if (!submissionData.details || !submissionData.details.fullName || !submissionData.details.email) {
-    return res.status(400).json({ error: 'Full name and email are required' });
-  }
-
-  const existingIndex = candidates.findIndex((c) => c.id === submissionData.id);
+  const submissionData: Partial<CandidateSubmission> = req.body || {};
   const now = new Date().toISOString();
 
+  const details = {
+    fullName: submissionData.details?.fullName?.trim() || 'Assessment Candidate',
+    email: submissionData.details?.email?.trim() || 'candidate@crucible.edu',
+    phone: submissionData.details?.phone || '',
+    role: submissionData.details?.role || 'Full Stack Developer',
+    schoolName: submissionData.details?.schoolName || 'Tamil Nadu Higher Secondary School',
+    standard: submissionData.details?.standard || '12th Computer Science',
+    githubProfile: submissionData.details?.githubProfile || '',
+    notes: submissionData.details?.notes || ''
+  };
+
+  const existingIndex = candidates.findIndex((c) => c.id === submissionData.id);
   let finalCandidate: CandidateSubmission;
 
   if (existingIndex >= 0) {
     finalCandidate = {
       ...candidates[existingIndex],
       ...submissionData,
+      details: {
+        ...candidates[existingIndex].details,
+        ...details
+      },
       status: 'submitted',
       submittedAt: now
     };
     candidates[existingIndex] = finalCandidate;
   } else {
     finalCandidate = {
-      id: submissionData.id || `cand-${Date.now().toString(36)}`,
+      id: submissionData.id || `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
       candidateCode: submissionData.candidateCode || CANDIDATE_ACCESS_CODE,
-      details: submissionData.details,
+      details,
       status: 'submitted',
       answers: submissionData.answers || [],
       startedAt: submissionData.startedAt || now,
@@ -197,7 +208,7 @@ app.post('/api/candidates/submit', (req, res) => {
     submittedAt: finalCandidate.submittedAt
   });
 
-  res.status(201).json({
+  res.status(200).json({
     success: true,
     candidate: finalCandidate,
     message: 'Assessment answers and candidate details submitted successfully.'

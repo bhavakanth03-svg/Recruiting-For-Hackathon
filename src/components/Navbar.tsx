@@ -130,11 +130,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Shield className="w-3.5 h-3.5 text-rose-400" />
             <span>Evaluator Console</span>
-            {currentRole !== 'creator' && (
-              <span className="text-[9px] text-amber-300 font-cyber-mono uppercase bg-amber-950/70 border border-amber-500/40 px-1 py-0.2 rounded">
-                Master Key
-              </span>
-            )}
           </button>
 
           <button
