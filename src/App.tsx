@@ -19,7 +19,8 @@ import {
   evaluateCandidate,
   fetchLeaderboard,
   fetchEmails,
-  subscribeToRealTimeEvents
+  subscribeToRealTimeEvents,
+  seedSampleStateRankCandidates
 } from './lib/api';
 import { INITIAL_CANDIDATE_SUBMISSIONS, INITIAL_EMAIL_NOTIFICATIONS } from './data/defaultData';
 import { Sparkles, Shield, UserCheck, Trophy, ArrowRight, CheckCircle2, Lock, Flame, Phone, User } from 'lucide-react';
@@ -413,7 +414,19 @@ export default function App() {
 
           {/* VIEW 4: LIVE LEADERBOARD */}
           {activeView === 'leaderboard' && (
-            <Leaderboard entries={leaderboard} onRefresh={loadData} />
+            <Leaderboard
+              entries={leaderboard}
+              onRefresh={loadData}
+              currentCandidateId={currentCandidateSubmission?.id}
+              isCreator={currentRole === 'creator'}
+              onNavigate={setActiveView}
+              onSeedSampleData={async () => {
+                const res = await seedSampleStateRankCandidates();
+                setLeaderboard(res.leaderboard);
+                setCandidates(res.candidates);
+                addToast('success', 'State Rank Scholars Loaded', 'Loaded top merit leaderboard entries.');
+              }}
+            />
           )}
         </Suspense>
       </main>

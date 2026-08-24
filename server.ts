@@ -6,7 +6,8 @@ import {
   CREATOR_ACCESS_CODE,
   CANDIDATE_ACCESS_CODE,
   INITIAL_CANDIDATE_SUBMISSIONS,
-  INITIAL_EMAIL_NOTIFICATIONS
+  INITIAL_EMAIL_NOTIFICATIONS,
+  DEFAULT_QUESTIONS
 } from './src/data/defaultData.ts';
 import { CandidateSubmission, EmailNotification, LeaderboardEntry, ServerEvent, EvaluationRubric } from './src/types.ts';
 
@@ -200,12 +201,56 @@ app.post('/api/candidates/submit', (req, res) => {
     candidates.unshift(finalCandidate);
   }
 
+  // Compute MCQ Score & Initial Evaluation for immediate leaderboard rank publish
+  let autoMcqScore = 0;
+  if (finalCandidate.answers && Array.isArray(finalCandidate.answers)) {
+    DEFAULT_QUESTIONS.slice(0, 24).forEach((q) => {
+      const ans = finalCandidate.answers?.find((a) => a.questionId === q.id);
+      if (ans && ans.selectedOptionIndex === q.correctOptionIndex) {
+        autoMcqScore += (q.points || 3);
+      }
+    });
+  }
+
+  if (!finalCandidate.evaluation) {
+    const defaultDesign = 14;
+    const defaultFunc = 14;
+    const totalScore = Math.min(100, autoMcqScore + defaultDesign + defaultFunc);
+    let grade: 'A+' | 'A' | 'B+' | 'B' | 'C' | 'D' = 'B';
+    if (totalScore >= 95) grade = 'A+';
+    else if (totalScore >= 90) grade = 'A';
+    else if (totalScore >= 80) grade = 'B+';
+    else if (totalScore >= 70) grade = 'B';
+    else if (totalScore >= 60) grade = 'C';
+    else grade = 'D';
+
+    finalCandidate.evaluation = {
+      mcqScore: autoMcqScore,
+      websitePromptDesign: defaultDesign,
+      websitePromptFunctionality: defaultFunc,
+      totalScore,
+      grade,
+      badge: totalScore >= 90 ? 'State Rank Gold' : 'TN CS Certified Scholar',
+      feedback: 'Assessment submitted. Evaluator review pending for Question 25.',
+      internalNotes: 'Auto-graded upon candidate submission.',
+      evaluatedAt: now,
+      evaluatedBy: 'The Crucible Automated Engine',
+      isPublishedToLeaderboard: true
+    };
+  }
+
   // Broadcast real-time candidate submission event to all connected evaluators
   broadcastEvent('CANDIDATE_SUBMITTED', {
     candidateId: finalCandidate.id,
     candidateName: finalCandidate.details.fullName,
     role: finalCandidate.details.role,
     submittedAt: finalCandidate.submittedAt
+  });
+
+  // Broadcast real-time leaderboard update so all live screens update immediately
+  broadcastEvent('LEADERBOARD_UPDATED', {
+    candidateId: finalCandidate.id,
+    score: finalCandidate.evaluation?.totalScore || 0
   });
 
   res.status(200).json({
@@ -312,10 +357,12 @@ app.post('/api/candidates/:id/evaluate', (req, res) => {
   });
 });
 
-// 7. Real-time Leaderboard Endpoint (Updated by Creator upon candidate completion)
+// 7. Real-time Leaderboard Endpoint (Updated in Real Time for all evaluated & submitted candidates)
 app.get('/api/leaderboard', (req, res) => {
   const publishedCandidates = candidates.filter(
-    (c) => c.status === 'evaluated' && c.evaluation && c.evaluation.isPublishedToLeaderboard
+    (c) => (c.status === 'evaluated' || c.status === 'submitted') &&
+           c.evaluation &&
+           c.evaluation.isPublishedToLeaderboard !== false
   );
 
   publishedCandidates.sort((a, b) => {
@@ -344,6 +391,127 @@ app.get('/api/leaderboard', (req, res) => {
   }));
 
   res.json({ leaderboard, totalEvaluated: leaderboard.length });
+});
+
+// Seed Sample Batch of Tamil Nadu State Board CS Scholars for Testing/Demonstration
+app.post('/api/candidates/seed-sample-batch', (req, res) => {
+  const now = new Date().toISOString();
+  const sampleBatch: CandidateSubmission[] = [
+    {
+      id: 'cand-tn-001',
+      candidateCode: 'CANDIDATE-2025',
+      details: {
+        fullName: 'Bhavakanth K',
+        email: 'bhavakanth1047@gmail.com',
+        phone: '6380650379',
+        role: 'Full Stack Developer',
+        schoolName: 'Chennai Model Higher Secondary School',
+        standard: '12th Computer Science',
+        githubProfile: 'https://github.com/bhavakanth1047',
+        notes: 'State Rank Candidate'
+      },
+      status: 'evaluated',
+      answers: [],
+      startedAt: new Date(Date.now() - 3600000).toISOString(),
+      submittedAt: new Date(Date.now() - 1800000).toISOString(),
+      timeSpentSeconds: 1650,
+      evaluation: {
+        mcqScore: 72,
+        websitePromptDesign: 14,
+        websitePromptFunctionality: 14,
+        totalScore: 100,
+        grade: 'A+',
+        badge: 'State Rank Gold',
+        feedback: 'Exceptional mastery of C++, Python, SQL, and full-stack web architecture with live sandbox prompt design.',
+        internalNotes: 'Top rank candidate in Tamil Nadu Board CS.',
+        evaluatedAt: now,
+        evaluatedBy: 'Lead CS State Board Evaluator',
+        isPublishedToLeaderboard: true
+      },
+      emailDispatched: true,
+      emailDispatchedAt: now
+    },
+    {
+      id: 'cand-tn-002',
+      candidateCode: 'CANDIDATE-2025',
+      details: {
+        fullName: 'Kavitha Ramesh',
+        email: 'kavitha.ramesh@gmail.com',
+        phone: '+91 94441 23456',
+        role: 'Python & Web Developer',
+        schoolName: 'Coimbatore Government Boys & Girls HSS',
+        standard: '12th Computer Science',
+        githubProfile: 'https://github.com/kavitha-ramesh',
+        notes: 'Distinction Candidate'
+      },
+      status: 'evaluated',
+      answers: [],
+      startedAt: new Date(Date.now() - 7200000).toISOString(),
+      submittedAt: new Date(Date.now() - 5400000).toISOString(),
+      timeSpentSeconds: 1720,
+      evaluation: {
+        mcqScore: 69,
+        websitePromptDesign: 14,
+        websitePromptFunctionality: 13,
+        totalScore: 96,
+        grade: 'A+',
+        badge: 'Silver Scholar',
+        feedback: 'Superb understanding of Python OOP and SQL Relational joins with clean CSS design.',
+        internalNotes: 'Rank #2 candidate.',
+        evaluatedAt: now,
+        evaluatedBy: 'Lead CS State Board Evaluator',
+        isPublishedToLeaderboard: true
+      },
+      emailDispatched: true,
+      emailDispatchedAt: now
+    },
+    {
+      id: 'cand-tn-003',
+      candidateCode: 'CANDIDATE-2025',
+      details: {
+        fullName: 'Senthil Nathan',
+        email: 'senthil.nathan@gmail.com',
+        phone: '+91 98840 98765',
+        role: 'Systems & Web Architect',
+        schoolName: 'Madurai Central Higher Secondary School',
+        standard: '11th Computer Science',
+        githubProfile: 'https://github.com/senthil-nathan',
+        notes: '11th Standard CS Prodigy'
+      },
+      status: 'evaluated',
+      answers: [],
+      startedAt: new Date(Date.now() - 10800000).toISOString(),
+      submittedAt: new Date(Date.now() - 9000000).toISOString(),
+      timeSpentSeconds: 1800,
+      evaluation: {
+        mcqScore: 66,
+        websitePromptDesign: 13,
+        websitePromptFunctionality: 13,
+        totalScore: 92,
+        grade: 'A',
+        badge: 'Bronze Scholar',
+        feedback: 'Strong understanding of C++ memory pointers, dynamic allocation, and HTML5 layout design.',
+        internalNotes: 'Rank #3 candidate.',
+        evaluatedAt: now,
+        evaluatedBy: 'Lead CS State Board Evaluator',
+        isPublishedToLeaderboard: true
+      },
+      emailDispatched: true,
+      emailDispatchedAt: now
+    }
+  ];
+
+  sampleBatch.forEach((cand) => {
+    const idx = candidates.findIndex((c) => c.id === cand.id);
+    if (idx >= 0) {
+      candidates[idx] = cand;
+    } else {
+      candidates.push(cand);
+    }
+  });
+
+  broadcastEvent('LEADERBOARD_UPDATED', { message: 'Sample batch seeded' });
+  res.json({ success: true, count: sampleBatch.length, candidates });
 });
 
 // 8. Email Outbox Logs
