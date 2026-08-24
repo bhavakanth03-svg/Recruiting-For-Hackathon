@@ -1,0 +1,6 @@
+{
+  "name": "The Crucible",
+  "description": "The Crucible - Advanced Tamil Nadu State Board 11th & 12th Standard Computer Science Assessment & Evaluation Platform with 24 code-based MCQs, interactive website building prompt, keyboard-accessible options, and real-time evaluation sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
