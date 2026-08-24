@@ -363,7 +363,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
   const requestExportScorecardsHtmlToDrive = () => {
     const evaluatedCandidates = candidates.filter((c) => c.status === 'evaluated');
     if (evaluatedCandidates.length === 0) {
-      alert('No evaluated candidates to export. Score submissions first.');
+      setStatusMessage('Notice: No evaluated candidates to export yet. Score submissions first in the Evaluation Console.');
       return;
     }
 
@@ -420,7 +420,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
   const handleRequestCreateCustomContact = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContactGivenName || !newContactEmail) {
-      alert('Please enter at least a First Name and Email.');
+      setStatusMessage('Validation: Please enter at least a First Name and Email.');
       return;
     }
 
@@ -495,7 +495,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
   const handleRequestSendCustomCompose = (e: React.FormEvent) => {
     e.preventDefault();
     if (!composeTo || !composeSubject || !composeBody) {
-      alert('Please fill in all fields.');
+      setStatusMessage('Validation: Please fill in all recipient, subject, and message fields.');
       return;
     }
 
@@ -879,7 +879,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                         onClick={() => {
                           const evaluated = candidates.filter((c) => c.status === 'evaluated');
                           if (evaluated.length === 0) {
-                            alert('No evaluated candidates to export. Score submissions first.');
+                            setStatusMessage('Notice: No evaluated candidates to export yet. Score submissions first.');
                             return;
                           }
                           const html = generateScorecardsHtml();
@@ -1267,7 +1267,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                       <div className="flex items-center gap-2 overflow-x-auto pb-1">
                         {candidates.slice(0, 5).map((cand) => (
                           <div
-                            key={cand.id}
+                            key={`gw-cand-${cand.id}`}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 shrink-0 text-xs"
                           >
                             <span className="font-bold text-white font-rajdhani">{cand.details.fullName}</span>
@@ -1294,9 +1294,9 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {filteredContacts.map((contact) => (
+                      {filteredContacts.map((contact, cIdx) => (
                         <div
-                          key={contact.resourceName}
+                          key={`gw-contact-${contact.resourceName || contact.email || cIdx}`}
                           className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-cyan-500/40 transition-all space-y-2 text-left flex flex-col justify-between"
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -1483,7 +1483,7 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                         const isSelected = selectedEmail?.id === email.id;
                         return (
                           <div
-                            key={email.id}
+                            key={`gw-outbox-${email.id}`}
                             onClick={() => setSelectedEmail(email)}
                             className={`p-3 rounded-2xl border cursor-pointer transition-all text-left ${
                               isSelected
@@ -1570,8 +1570,8 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                             className="text-[10px] bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1.5 py-0.5"
                           >
                             <option value="">+ Pick from Google Contacts</option>
-                            {contacts.filter((c) => c.email).map((c) => (
-                              <option key={c.resourceName} value={c.email}>
+                            {contacts.filter((c) => c.email).map((c, cIdx) => (
+                              <option key={`contact-opt-${c.resourceName || c.email}-${cIdx}`} value={c.email}>
                                 {c.displayName} ({c.email})
                               </option>
                             ))}
@@ -1656,8 +1656,8 @@ export const GoogleWorkspaceModal: React.FC<GoogleWorkspaceModalProps> = ({
                         </div>
                       ) : (
                         <div className="divide-y divide-slate-800 rounded-2xl bg-slate-900/60 border border-cyan-500/20 overflow-hidden">
-                          {gmailMessages.map((msg) => (
-                            <div key={msg.id} className="p-3 text-left space-y-1 hover:bg-slate-900">
+                          {gmailMessages.map((msg, mIdx) => (
+                            <div key={`gw-feed-msg-${msg.id || mIdx}`} className="p-3 text-left space-y-1 hover:bg-slate-900">
                               <div className="flex justify-between text-xs">
                                 <span className="font-bold text-cyan-300 truncate max-w-[280px] font-rajdhani">{msg.subject || '(No Subject)'}</span>
                                 <span className="text-[10px] text-slate-500 font-cyber-mono">{msg.date ? new Date(msg.date).toLocaleDateString() : ''}</span>

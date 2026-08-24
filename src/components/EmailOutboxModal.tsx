@@ -209,7 +209,7 @@ export const EmailOutboxModal: React.FC<EmailOutboxModalProps> = ({
   const handleRequestSendCustomCompose = (e: React.FormEvent) => {
     e.preventDefault();
     if (!composeTo || !composeSubject || !composeBody) {
-      alert('Please fill in all recipient, subject, and message fields.');
+      setAuthError('Please fill in all recipient, subject, and message fields.');
       return;
     }
 
@@ -237,6 +237,7 @@ export const EmailOutboxModal: React.FC<EmailOutboxModalProps> = ({
 
     setIsSendingViaGmail(true);
     setSendSuccessMessage(null);
+    setAuthError(null);
 
     try {
       const result = await sendEmailViaGmail({
@@ -269,7 +270,7 @@ export const EmailOutboxModal: React.FC<EmailOutboxModalProps> = ({
       setComposeSubject('');
       setComposeBody('');
     } catch (err: any) {
-      alert(`Gmail Send Error: ${err.message}`);
+      setAuthError(`Gmail Send Notice: ${err.message}`);
     } finally {
       setIsSendingViaGmail(false);
     }
@@ -430,12 +431,12 @@ export const EmailOutboxModal: React.FC<EmailOutboxModalProps> = ({
                     No candidate assessment emails in queue. Evaluators can score submissions to generate reports.
                   </div>
                 ) : (
-                  emails.map((email) => {
+                  emails.map((email, eIdx) => {
                     const isSelected = selectedEmail?.id === email.id;
 
                     return (
                       <div
-                        key={email.id}
+                        key={`outbox-email-${email.id || eIdx}`}
                         onClick={() => setSelectedEmail(email)}
                         className={`p-3.5 rounded-2xl border cursor-pointer transition-all text-left ${
                           isSelected
@@ -730,8 +731,8 @@ export const EmailOutboxModal: React.FC<EmailOutboxModalProps> = ({
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-800/80 rounded-2xl bg-slate-900/60 border border-cyan-500/20 overflow-hidden">
-                      {gmailMessages.map((msg) => (
-                        <div key={msg.id} className="p-3.5 hover:bg-slate-900 transition-colors text-left space-y-1">
+                      {gmailMessages.map((msg, mIdx) => (
+                        <div key={`email-modal-msg-${msg.id || mIdx}`} className="p-3.5 hover:bg-slate-900 transition-colors text-left space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-bold text-cyan-300 font-rajdhani truncate max-w-[280px]">
                               {msg.subject || '(No Subject)'}

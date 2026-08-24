@@ -257,7 +257,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   const q25Answer = selectedCandidate?.answers?.find((a) => a.questionId === 'q25');
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8 flex-1">
       {/* 1. CREATOR COMMAND HEADER & METRICS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -572,7 +572,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
                     return (
                       <div
-                        key={q.id}
+                        key={`eval-mcq-${q.id}`}
                         className={`p-3.5 rounded-2xl border text-xs space-y-2 ${
                           isCorrect
                             ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40'
@@ -780,26 +780,32 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                   </div>
 
                   {gmailUser ? (
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sendViaGmailOption}
-                        onChange={(e) => setSendViaGmailOption(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
-                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sendViaGmailOption}
+                          onChange={(e) => setSendViaGmailOption(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                      </label>
+                    </div>
                   ) : (
                     <button
                       type="button"
                       onClick={async () => {
                         try {
-                          await signInWithGmail();
+                          const res = await signInWithGmail();
+                          if (res?.user) {
+                            setGmailUser(res.user);
+                            setSendViaGmailOption(true);
+                          }
                         } catch (err: any) {
-                          alert(err.message);
+                          console.warn('Gmail sign-in notice:', err.message);
                         }
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow transition-all"
+                      className="px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/20 transition-all active:scale-95 shrink-0"
                     >
                       Connect Gmail
                     </button>

@@ -30,7 +30,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ entries, onRefresh }) 
   const topThree = entries.slice(0, 3);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8 flex-1">
       {/* Header */}
       <div className="text-center max-w-xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200/50 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 text-xs font-semibold mb-3">
@@ -181,9 +181,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ entries, onRefresh }) 
           </div>
         ) : (
           <div className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
-            {filteredEntries.map((entry) => (
+            {filteredEntries.map((entry, idx) => (
               <div
-                key={entry.candidateId}
+                key={`leaderboard-entry-${entry.candidateId || idx}`}
                 className="p-4 sm:p-5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-4"
               >
                 <div className="flex items-center gap-4">

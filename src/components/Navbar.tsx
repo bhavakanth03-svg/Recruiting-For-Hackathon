@@ -300,6 +300,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Trophy className="w-4 h-4 text-amber-400" />
             <span>Leaderboard</span>
           </button>
+
+          <div className="pt-2 border-t border-slate-800/80 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                handleOpenWorkspace('drive');
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-orbitron font-bold uppercase bg-slate-900 border border-cyan-500/40 text-cyan-300"
+            >
+              <span>Workspace Hub</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onOpenUnitTests();
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-cyber-mono font-bold uppercase bg-slate-900 border border-slate-700 text-slate-300"
+            >
+              <FlaskConical className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Unit Tests</span>
+            </button>
+          </div>
         </motion.div>
       )}
     </header>

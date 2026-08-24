@@ -58,7 +58,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({
   const evaluation = submission.evaluation;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+    <div className="w-full max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8 flex-1">
       {/* 1. HERO POST-SUBMISSION STATUS BANNER */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}

@@ -440,7 +440,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 flex-1 flex flex-col">
       {/* 0. STEP 1: ACCESS CODE GATE (REQUIRED BEFORE TEST) */}
       {step === 'gate' && (
         <motion.div
@@ -751,7 +751,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
                 return (
                   <button
-                    key={q.id}
+                    key={`q-step-${q.id}`}
                     onClick={() => setCurrentQuestionIndex(idx)}
                     className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-[11px] sm:text-xs font-semibold flex items-center justify-center transition-all ${
                       isCurrent
@@ -865,7 +865,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
                     return (
                       <div
-                        key={optIdx}
+                        key={`option-${currentQuestion.id}-${optIdx}`}
                         onClick={() => handleSelectOption(currentQuestion.id, optIdx)}
                         className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all flex items-start gap-3.5 select-none ${
                           isSelected

@@ -309,7 +309,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Navigation Header */}
       <Navbar
         currentRole={currentRole}
@@ -333,12 +333,12 @@ export default function App() {
       />
 
       {/* Main View Container */}
-      <main className="flex-1">
+      <main className="flex-1 w-full flex flex-col">
         <Suspense
           fallback={
-            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full border-3 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 animate-spin" />
-              <p className="text-xs text-slate-500 font-medium">Loading component...</p>
+            <div className="min-h-[60vh] flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="w-10 h-10 rounded-full border-3 border-cyan-500/30 border-t-cyan-400 animate-spin" />
+              <p className="text-xs text-slate-500 font-cyber-mono">Loading The Crucible modules...</p>
             </div>
           }
         >
