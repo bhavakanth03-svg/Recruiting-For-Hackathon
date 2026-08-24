@@ -31,13 +31,13 @@ import {
 } from 'lucide-react';
 import { CandidateDetails, CandidateAnswer, Question } from '../types';
 import { DEFAULT_QUESTIONS, CANDIDATE_ACCESS_CODE, CREATOR_ACCESS_CODE } from '../data/defaultData';
-import { verifyAccessCode } from '../lib/api';
+import { verifyAccessCode, syncCandidateProgress } from '../lib/api';
 
 interface CandidateAssessmentProps {
   initialDetails?: CandidateDetails;
   isAuthenticatedCandidate: boolean;
   onAuthenticated?: (role: 'candidate') => void;
-  onSubmitAssessment: (details: CandidateDetails, answers: CandidateAnswer[], timeSpentSeconds: number) => Promise<void>;
+  onSubmitAssessment: (details: CandidateDetails, answers: CandidateAnswer[], timeSpentSeconds: number, candidateId?: string) => Promise<void>;
   isSubmitting: boolean;
 }
 
@@ -49,6 +49,18 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   isSubmitting
 }) => {
   const TOTAL_TIME_SECONDS = 60 * 60;
+
+  // Persistent Candidate ID across devices / sessions
+  const [candidateId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evalpulse_candidate_id');
+      if (saved) return saved;
+      const newId = `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      localStorage.setItem('evalpulse_candidate_id', newId);
+      return newId;
+    }
+    return `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+  });
 
   // Step state: 'gate' (requires access code) -> 'registration' -> 'testing' -> 'review'
   const [step, setStep] = useState<'gate' | 'registration' | 'testing' | 'review'>(() => {
@@ -352,7 +364,32 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     setRegistrationErrors({});
     setStep('testing');
+
+    // Instantly sync candidate registration across all devices so creator dashboard immediately sees the student
+    syncCandidateProgress({
+      id: candidateId,
+      details,
+      status: 'in_progress',
+      answers: Object.values(answers),
+      timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining,
+      startedAt: new Date().toISOString()
+    });
   };
+
+  // Real-time live auto-sync to server across devices during testing
+  useEffect(() => {
+    if (step !== 'testing' || !details.fullName) return;
+    const timer = setTimeout(() => {
+      syncCandidateProgress({
+        id: candidateId,
+        details,
+        status: 'in_progress',
+        answers: Object.values(answers),
+        timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [answers, details, step, candidateId, timeRemaining]);
 
   const currentQuestion = DEFAULT_QUESTIONS[currentQuestionIndex];
 
@@ -377,7 +414,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   const handleFinalSubmit = async () => {
     const formattedAnswers = Object.values(answers);
     const timeSpent = TOTAL_TIME_SECONDS - timeRemaining;
-    await onSubmitAssessment(details, formattedAnswers, timeSpent);
+    await onSubmitAssessment(details, formattedAnswers, timeSpent, candidateId);
   };
 
   // Generate live iframe srcDoc for Q25

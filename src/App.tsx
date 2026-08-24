@@ -151,7 +151,7 @@ export default function App() {
   const loadData = async () => {
     try {
       const cands = await fetchCandidates(authToken);
-      if (cands.length > 0) setCandidates(cands);
+      setCandidates(cands);
 
       const board = await fetchLeaderboard();
       setLeaderboard(board);
@@ -167,11 +167,34 @@ export default function App() {
     loadData();
   }, [authToken]);
 
+  // Active Multi-Device Background Polling & Visibility Sync
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData();
+    }, 3000);
+
+    const handleFocus = () => loadData();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [authToken]);
+
   // Real-Time SSE Event Listener Subscription
   useEffect(() => {
     const unsubscribe = subscribeToRealTimeEvents((event: ServerEvent) => {
-      if (event.type === 'CANDIDATE_SUBMITTED') {
-        addToast('notification', 'New Assessment Submitted', `${event.data.candidateName} submitted responses for ${event.data.targetRole}.`);
+      if (event.type === 'CANDIDATE_PROGRESS_UPDATED') {
+        loadData();
+      } else if (event.type === 'CANDIDATE_SUBMITTED') {
+        addToast('notification', 'New Assessment Submitted', `${event.data.candidateName} submitted responses for ${event.data.role || 'CS Assessment'}.`);
         loadData();
       } else if (event.type === 'CANDIDATE_EVALUATED') {
         // If the evaluated candidate matches our active session submission, update live!
@@ -232,11 +255,14 @@ export default function App() {
   const handleSubmitAssessment = async (
     details: CandidateDetails,
     answers: CandidateAnswer[],
-    timeSpentSeconds: number
+    timeSpentSeconds: number,
+    candidateId?: string
   ) => {
     setIsSubmitting(true);
     try {
+      const candId = candidateId || (typeof window !== 'undefined' ? localStorage.getItem('evalpulse_candidate_id') : undefined) || undefined;
       const submissionPayload: Partial<CandidateSubmission> = {
+        id: candId,
         details,
         answers,
         timeSpentSeconds,

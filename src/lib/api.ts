@@ -82,7 +82,10 @@ export async function fetchCandidates(token?: string): Promise<CandidateSubmissi
     if (activeToken) {
       headers['Authorization'] = `Bearer ${activeToken}`;
     }
-    const res = await fetch(`${API_BASE}/candidates?role=creator`, { headers });
+    const res = await fetch(`${API_BASE}/candidates?role=creator&t=${Date.now()}`, {
+      headers,
+      cache: 'no-store'
+    });
     if (!res.ok) throw new Error('Failed to fetch candidates');
     const data = await res.json();
     if (data && Array.isArray(data.candidates)) {
@@ -115,7 +118,10 @@ export async function fetchCandidateById(id: string): Promise<CandidateSubmissio
       const activeToken = localStorage.getItem('evalpulse_auth_token');
       if (activeToken) headers['Authorization'] = `Bearer ${activeToken}`;
     }
-    const res = await fetch(`${API_BASE}/candidates/${id}`, { headers });
+    const res = await fetch(`${API_BASE}/candidates/${id}?t=${Date.now()}`, {
+      headers,
+      cache: 'no-store'
+    });
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const data = await res.json();
     if (data && data.candidate) {
@@ -134,6 +140,39 @@ export async function fetchCandidateById(id: string): Promise<CandidateSubmissio
     } catch {}
     return null;
   }
+}
+
+export async function syncCandidateProgress(progress: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(progress)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.success || data.candidate)) {
+        const candidateObj = data.candidate;
+        if (candidateObj && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('evalpulse_candidate_submission', JSON.stringify(candidateObj));
+            const existingRaw = localStorage.getItem('evalpulse_all_candidates');
+            let list: CandidateSubmission[] = existingRaw ? JSON.parse(existingRaw) : [];
+            if (!Array.isArray(list)) list = [];
+            const idx = list.findIndex((c) => c.id === candidateObj.id);
+            if (idx >= 0) list[idx] = candidateObj;
+            else list.unshift(candidateObj);
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+          } catch {}
+          return { success: true, candidate: candidateObj, message: data.message || 'Progress synced' };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Backend API progress sync unavailable, updated locally:', err);
+  }
+
+  return { success: true, message: 'Local progress saved' };
 }
 
 export async function seedSampleCandidates(): Promise<{ success: boolean; count: number; candidates: CandidateSubmission[] }> {

@@ -125,7 +125,7 @@ export interface UnitTestResult {
 }
 
 export interface ServerEvent {
-  type: 'CANDIDATE_SUBMITTED' | 'CANDIDATE_EVALUATED' | 'LEADERBOARD_UPDATED' | 'EMAIL_SENT' | 'PING';
+  type: 'CANDIDATE_SUBMITTED' | 'CANDIDATE_PROGRESS_UPDATED' | 'CANDIDATE_EVALUATED' | 'LEADERBOARD_UPDATED' | 'EMAIL_SENT' | 'PING';
   data: any;
   timestamp: string;
 }

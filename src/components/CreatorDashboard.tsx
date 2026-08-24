@@ -35,7 +35,8 @@ import {
   Smartphone,
   Tablet,
   Monitor,
-  RotateCcw
+  RotateCcw,
+  Radio
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission, EvaluationRubric, Question } from '../types';
@@ -72,7 +73,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   onOpenGoogleWorkspace
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'evaluated'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'pending' | 'evaluated'>('all');
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateSubmission | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
@@ -320,6 +321,8 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
   // Metrics computation
   const totalCount = candidates.length;
+  const inProgressCount = candidates.filter((c) => c.status === 'in_progress' || c.status === 'not_started').length;
+  const submittedCount = candidates.filter((c) => c.status === 'submitted').length;
   const pendingCount = candidates.filter((c) => c.status !== 'evaluated').length;
   const evaluatedCount = candidates.filter((c) => c.status === 'evaluated').length;
   const evaluatedScores = candidates
@@ -338,7 +341,8 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
     if (!matchesSearch) return false;
 
-    if (filterStatus === 'pending') return cand.status !== 'evaluated';
+    if (filterStatus === 'in_progress') return cand.status === 'in_progress' || cand.status === 'not_started';
+    if (filterStatus === 'pending') return cand.status === 'submitted';
     if (filterStatus === 'evaluated') return cand.status === 'evaluated';
     return true;
   });
@@ -369,15 +373,21 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
       {/* 1. CREATOR COMMAND HEADER & METRICS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-2">
-            <Shield className="w-3.5 h-3.5" />
-            <span>The Crucible • Evaluator & Creator Console</span>
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold">
+              <Shield className="w-3.5 h-3.5" />
+              <span>The Crucible • Evaluator & Creator Console</span>
+            </div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span>Live Multi-Device Sync Active</span>
+            </div>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             Tamil Nadu CS Candidate Response Center
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Access and inspect full candidate responses across all 24 C++/Python/SQL MCQs, explore Question 25 live interactive website builds, and evaluate candidates directly from this single screen.
+            Access and inspect full candidate responses across all 24 C++/Python/SQL MCQs and Question 25 website creations in real time from any candidate device.
           </p>
         </div>
 
@@ -416,25 +426,25 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Candidates</span>
           <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{totalCount}</div>
-          <span className="text-[11px] text-indigo-600 dark:text-indigo-400">All submissions recorded</span>
+          <span className="text-[11px] text-indigo-600 dark:text-indigo-400">All registered devices</span>
         </div>
 
         <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Needs Evaluation</span>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{pendingCount}</div>
-          <span className="text-[11px] text-amber-500">Ready for review</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Live Taking Test</span>
+          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">{inProgressCount}</div>
+          <span className="text-[11px] text-sky-500">Active session sync</span>
+        </div>
+
+        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Submitted & Ready</span>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{submittedCount}</div>
+          <span className="text-[11px] text-amber-500">Awaiting scoring</span>
         </div>
 
         <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Evaluated & Verified</span>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{evaluatedCount}</div>
           <span className="text-[11px] text-emerald-500">Leaderboard published</span>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Cohort Average Score</span>
-          <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-1">{avgScore}/100</div>
-          <span className="text-[11px] text-cyan-500">State CS Benchmark</span>
         </div>
       </div>
 
@@ -451,16 +461,27 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 self-end sm:self-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 self-end sm:self-auto flex-wrap">
           <button
             onClick={() => setFilterStatus('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterStatus === 'all'
                 ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             All ({candidates.length})
+          </button>
+
+          <button
+            onClick={() => setFilterStatus('in_progress')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              filterStatus === 'in_progress'
+                ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            In-Progress ({inProgressCount})
           </button>
 
           <button
@@ -468,10 +489,10 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterStatus === 'pending'
                 ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            Pending ({pendingCount})
+            Submitted ({submittedCount})
           </button>
 
           <button
@@ -479,7 +500,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterStatus === 'evaluated'
                 ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             Evaluated ({evaluatedCount})
@@ -504,6 +525,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
           <div className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
             {filteredCandidates.map((cand) => {
               const isGraded = cand.status === 'evaluated' && cand.evaluation;
+              const isInProgress = cand.status === 'in_progress' || cand.status === 'not_started';
               const mcqAnsweredCount = cand.answers?.filter((a) => a.questionId.startsWith('q') && a.questionId !== 'q25' && a.selectedOptionIndex !== undefined).length || 0;
               const hasQ25 = cand.answers?.some((a) => a.questionId === 'q25' && (a.websitePrompt || a.htmlCode));
 
@@ -516,9 +538,17 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-base shrink-0 border ${
                       isGraded
                         ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/60'
+                        : isInProgress
+                        ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border-sky-200/60 dark:border-sky-800/60'
                         : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/60'
                     }`}>
-                      {isGraded ? cand.evaluation!.totalScore : <Clock className="w-5 h-5" />}
+                      {isGraded ? (
+                        cand.evaluation!.totalScore
+                      ) : isInProgress ? (
+                        <Radio className="w-5 h-5 animate-pulse" />
+                      ) : (
+                        <Clock className="w-5 h-5" />
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -529,9 +559,18 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                         <span className="text-xs text-slate-500 dark:text-slate-400">
                           ({cand.details.email})
                         </span>
-                        {isGraded && (
+                        {isGraded ? (
                           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             Grade: {cand.evaluation!.grade} • {cand.evaluation!.badge || 'Certified'}
+                          </span>
+                        ) : isInProgress ? (
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                            <span>Live on Device</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            Submitted • Ready for Score
                           </span>
                         )}
                         {cand.emailDispatched && (

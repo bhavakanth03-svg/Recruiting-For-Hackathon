@@ -369,13 +369,17 @@ app.post('/api/auth/verify-code', (req, res) => {
   });
 });
 
-// 3. Get All Candidates (Full responses accessible for creator and assessment evaluation)
+// 3. Get All Candidates (Full responses accessible for creator and assessment evaluation across all devices)
 app.get('/api/candidates', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.json({ candidates });
 });
 
 // 4. Get Single Candidate By ID
 app.get('/api/candidates/:id', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   const candidate = candidates.find((c) => c.id === req.params.id);
   if (!candidate) {
     return res.status(404).json({ error: 'Candidate not found' });
@@ -383,7 +387,84 @@ app.get('/api/candidates/:id', (req, res) => {
   res.json({ candidate });
 });
 
-// 5. Submit Candidate Assessment & Details
+// 5. Candidate Live Progress Sync (Real-time sync across any device as candidate takes test)
+app.post('/api/candidates/progress', (req, res) => {
+  const data: Partial<CandidateSubmission> = req.body || {};
+  const now = new Date().toISOString();
+  
+  if (!data.details?.fullName && !data.id) {
+    return res.status(400).json({ error: 'Missing candidate identification' });
+  }
+
+  const details = {
+    fullName: data.details?.fullName?.trim() || 'Assessment Candidate',
+    email: data.details?.email?.trim() || '',
+    phone: data.details?.phone || '',
+    role: data.details?.role || 'Full Stack Developer',
+    schoolName: data.details?.schoolName || 'Tamil Nadu Higher Secondary School',
+    standard: data.details?.standard || '12th Computer Science',
+    githubProfile: data.details?.githubProfile || '',
+    notes: data.details?.notes || ''
+  };
+
+  const candId = data.id || `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+  const existingIndex = candidates.findIndex((c) => 
+    c.id === candId || 
+    (details.email && c.details.email && c.details.email.toLowerCase() === details.email.toLowerCase() && details.fullName.toLowerCase() === c.details.fullName.toLowerCase())
+  );
+
+  let candidateObj: CandidateSubmission;
+
+  if (existingIndex >= 0) {
+    const existing = candidates[existingIndex];
+    candidateObj = {
+      ...existing,
+      ...data,
+      id: existing.id,
+      details: {
+        ...existing.details,
+        ...details
+      },
+      // Do not downgrade evaluated status if already evaluated
+      status: existing.status === 'evaluated' ? 'evaluated' : (data.status || existing.status || 'in_progress'),
+      answers: data.answers !== undefined ? data.answers : existing.answers,
+      startedAt: existing.startedAt || data.startedAt || now,
+      timeSpentSeconds: data.timeSpentSeconds !== undefined ? data.timeSpentSeconds : existing.timeSpentSeconds
+    };
+    candidates[existingIndex] = candidateObj;
+  } else {
+    candidateObj = {
+      id: candId,
+      candidateCode: data.candidateCode || CANDIDATE_ACCESS_CODE,
+      details,
+      status: data.status || 'in_progress',
+      answers: data.answers || [],
+      startedAt: data.startedAt || now,
+      timeSpentSeconds: data.timeSpentSeconds || 0
+    };
+    candidates.unshift(candidateObj);
+  }
+
+  // Persist updated candidate list to disk
+  saveCandidatesToDisk(candidates);
+
+  // Broadcast real-time candidate progress update event to all connected evaluators
+  broadcastEvent('CANDIDATE_PROGRESS_UPDATED', {
+    candidateId: candidateObj.id,
+    candidateName: candidateObj.details.fullName,
+    status: candidateObj.status,
+    answersCount: candidateObj.answers?.length || 0,
+    timestamp: now
+  });
+
+  res.json({
+    success: true,
+    candidate: candidateObj,
+    message: 'Candidate progress synced across devices.'
+  });
+});
+
+// 6. Submit Candidate Assessment & Details
 app.post('/api/candidates/submit', (req, res) => {
   const submissionData: Partial<CandidateSubmission> = req.body || {};
   const now = new Date().toISOString();
@@ -399,19 +480,25 @@ app.post('/api/candidates/submit', (req, res) => {
     notes: submissionData.details?.notes || ''
   };
 
-  const existingIndex = candidates.findIndex((c) => c.id === submissionData.id);
+  const existingIndex = candidates.findIndex((c) => 
+    c.id === submissionData.id || 
+    (details.email && c.details.email && c.details.email.toLowerCase() === details.email.toLowerCase())
+  );
   let finalCandidate: CandidateSubmission;
 
   if (existingIndex >= 0) {
     finalCandidate = {
       ...candidates[existingIndex],
       ...submissionData,
+      id: candidates[existingIndex].id,
       details: {
         ...candidates[existingIndex].details,
         ...details
       },
-      status: 'submitted',
-      submittedAt: now
+      status: candidates[existingIndex].status === 'evaluated' ? 'evaluated' : 'submitted',
+      answers: submissionData.answers || candidates[existingIndex].answers || [],
+      submittedAt: now,
+      timeSpentSeconds: submissionData.timeSpentSeconds !== undefined ? submissionData.timeSpentSeconds : (candidates[existingIndex].timeSpentSeconds || 1800)
     };
     candidates[existingIndex] = finalCandidate;
   } else {
@@ -490,7 +577,7 @@ app.post('/api/candidates/submit', (req, res) => {
   });
 });
 
-// 6. Creator Evaluation & Score Updating with Automated Email Dispatch
+// 7. Creator Evaluation & Score Updating with Automated Email Dispatch
 app.post('/api/candidates/:id/evaluate', (req, res) => {
   const { id } = req.params;
   const { rubric, evaluatorName, publishToLeaderboard } = req.body;
