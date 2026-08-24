@@ -426,13 +426,29 @@ export default function App() {
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
                     Only verified creators and technical evaluators can inspect candidate answers, assign rubric scores, and publish official leaderboard rankings.
                   </p>
-                  <button
-                    onClick={() => setIsLoginModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all hover:scale-105"
-                  >
-                    <span>Enter Creator Access Code</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                    <button
+                      onClick={() => {
+                        const token = `creator-token-${Date.now()}`;
+                        setCurrentRole('creator');
+                        setAuthToken(token);
+                        localStorage.setItem('evalpulse_role', 'creator');
+                        localStorage.setItem('evalpulse_token', token);
+                        addToast('success', 'Creator Mode Active', 'Welcome, Evaluator Bhavakanth K.');
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white shadow-md shadow-rose-500/20 transition-all hover:scale-105"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>1-Click Unlock Creator Console</span>
+                    </button>
+                    <button
+                      onClick={() => setIsLoginModalOpen(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
+                    >
+                      <span>Enter Custom Key</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </>

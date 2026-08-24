@@ -167,6 +167,37 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthe
               </div>
             </div>
 
+            {/* Quick 1-Click Code Autofill Presets */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[10px] text-slate-400 font-cyber-mono">PRESETS:</span>
+              {activeTab === 'candidate' ? (
+                <button
+                  type="button"
+                  onClick={() => setAccessCode('CANDIDATE-2025')}
+                  className="px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-cyber-mono text-[11px] font-bold transition-all"
+                >
+                  CANDIDATE-2025
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setAccessCode('CREATOR-2025')}
+                    className="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-cyber-mono text-[11px] font-bold transition-all"
+                  >
+                    CREATOR-2025
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccessCode('bhavakanth1047@gmail.com')}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/40 text-indigo-300 font-cyber-mono text-[11px] font-bold transition-all"
+                  >
+                    bhavakanth1047@gmail.com
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Error Feedback */}
             {errorMessage && (
               <motion.div

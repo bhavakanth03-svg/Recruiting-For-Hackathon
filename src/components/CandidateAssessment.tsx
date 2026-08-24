@@ -547,6 +547,22 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
               )}
             </button>
 
+            {/* 1-Click Quick Access Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccessCodeInput('CANDIDATE-2025');
+                  if (onAuthenticated) onAuthenticated('candidate');
+                  setStep('registration');
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 font-cyber-mono text-xs font-semibold transition-all hover:border-cyan-400"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <span>One-Click Instant Access (Key: CANDIDATE-2025)</span>
+              </button>
+            </div>
+
             {/* Creator Attribution */}
             <div className="pt-4 border-t border-cyan-500/20 flex flex-col gap-2 text-center text-xs font-rajdhani text-slate-400">
               <div className="flex items-center justify-center gap-2 text-slate-300">

@@ -115,13 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              if (currentRole === 'creator') {
-                onNavigate('creator');
-              } else {
-                onOpenLogin();
-              }
-            }}
+            onClick={() => onNavigate('creator')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all uppercase tracking-wider font-orbitron ${
               activeView === 'creator'
                 ? 'bg-gradient-to-r from-rose-500 to-indigo-600 text-white shadow-md cyber-glow-rose'
@@ -270,11 +264,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <button
             onClick={() => {
-              if (currentRole === 'creator') {
-                onNavigate('creator');
-              } else {
-                onOpenLogin();
-              }
+              onNavigate('creator');
               setMobileMenuOpen(false);
             }}
             className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-orbitron font-bold uppercase text-slate-200 hover:bg-slate-900"
@@ -285,7 +275,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             {currentRole !== 'creator' && (
               <span className="text-[10px] text-amber-300 font-cyber-mono bg-amber-950 px-2 py-0.5 rounded border border-amber-500/40">
-                Master Key
+                1-Click Access
               </span>
             )}
           </button>

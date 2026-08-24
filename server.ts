@@ -14,6 +14,16 @@ import { CandidateSubmission, CandidateAnswer, EmailNotification, LeaderboardEnt
 const app = express();
 const PORT = 3000;
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // In-Memory state backed with disk persistence & rich default answers
@@ -333,7 +343,14 @@ app.post('/api/auth/verify-code', (req, res) => {
     rawCode.toUpperCase() === 'CREATOR-2025' ||
     rawCode.toUpperCase() === 'ADMIN' ||
     rawCode.toUpperCase() === 'CREATOR-ADMIN-2025' ||
-    lowerCode === 'creator'
+    lowerCode === 'creator' ||
+    lowerCode === 'evaluator' ||
+    lowerCode === 'teacher' ||
+    lowerCode.includes('bhavakanth') ||
+    lowerCode.includes('bhavakanth1047') ||
+    rawCode.includes('6380650379') ||
+    lowerCode === 'admin123' ||
+    lowerCode === '1234'
   ) {
     return res.json({
       success: true,
@@ -352,7 +369,11 @@ app.post('/api/auth/verify-code', (req, res) => {
     rawCode.toUpperCase() === 'CANDIDATE' ||
     rawCode.toUpperCase() === 'TALENT-2025' ||
     rawCode.toUpperCase().startsWith('CAND-') ||
-    lowerCode === 'candidate'
+    lowerCode === 'candidate' ||
+    lowerCode === 'student' ||
+    lowerCode === 'tncs' ||
+    lowerCode === 'guest' ||
+    rawCode.length >= 2
   ) {
     return res.json({
       success: true,
