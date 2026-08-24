@@ -60,26 +60,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-slate-950/85 border-b border-cyan-500/20 transition-colors cyber-grid-bg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-slate-950/90 border-b border-cyan-500/20 transition-colors cyber-grid-bg">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[4.25rem] py-2 flex items-center justify-between gap-4">
         {/* Brand Logo: The Crucible Cybernetic */}
         <div
           onClick={() => onNavigate(hasCandidateSubmission ? 'home' : (currentRole === 'creator' ? 'creator' : 'assessment'))}
-          className="flex items-center gap-3 cursor-pointer group select-none"
+          className="flex items-center gap-3 cursor-pointer group select-none py-1"
         >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-600 via-rose-500 to-indigo-600 flex items-center justify-center text-white shadow-lg cyber-glow-cyan group-hover:scale-105 transition-transform border border-cyan-400/40">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-600 via-rose-500 to-indigo-600 flex items-center justify-center text-white shadow-lg cyber-glow-cyan group-hover:scale-105 transition-transform border border-cyan-400/40 shrink-0">
             <Flame className="w-5 h-5 text-cyan-200 animate-pulse" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-orbitron font-black text-lg tracking-wider text-white">
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-2">
+              <span className="font-orbitron font-black text-base sm:text-lg tracking-wider text-white leading-tight">
                 THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-rose-400 to-indigo-400">CRUCIBLE</span>
               </span>
-              <span className="text-[10px] font-cyber-mono font-bold uppercase px-1.5 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-500/40">
+              <span className="text-[9px] sm:text-[10px] font-cyber-mono font-bold uppercase px-2 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-500/40 shrink-0">
                 TN-CS // v2.5
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:flex items-center gap-1.5 font-rajdhani font-medium">
+            <p className="text-[11px] text-slate-400 hidden sm:flex items-center gap-1.5 font-rajdhani font-medium leading-normal mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
               <span>11th & 12th State Board CS Evaluation Suite</span>
             </p>
