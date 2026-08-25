@@ -20,8 +20,13 @@ import {
   fetchLeaderboard,
   fetchEmails,
   subscribeToRealTimeEvents,
-  seedSampleStateRankCandidates
+  seedSampleStateRankCandidates,
+  computeLeaderboardFromCandidates
 } from './lib/api';
+import {
+  mergeCandidateLists,
+  mergeSingleCandidate
+} from './lib/candidateSync';
 import {
   initSupabaseSync,
   broadcastCandidateSubmissionViaSupabase,
@@ -50,6 +55,9 @@ const UnitTestModal = lazy(() =>
 );
 const GoogleWorkspaceModal = lazy(() =>
   import('./components/GoogleWorkspaceModal').then((m) => ({ default: m.GoogleWorkspaceModal }))
+);
+const SupabaseSqlModal = lazy(() =>
+  import('./components/SupabaseSqlModal').then((m) => ({ default: m.SupabaseSqlModal }))
 );
 
 export default function App() {
@@ -92,6 +100,7 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUnitTestModalOpen, setIsUnitTestModalOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
   const [workspaceDefaultTab, setWorkspaceDefaultTab] = useState<'drive' | 'contacts' | 'gmail' | 'outbox'>('drive');
 
   // Application Data States
@@ -154,14 +163,20 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Load initial data
+  // Load & Synchronize Candidates across Supabase Cloud & Local State
   const loadData = async () => {
     try {
       const cands = await fetchCandidates(authToken);
-      setCandidates(cands);
-
-      const board = await fetchLeaderboard();
-      setLeaderboard(board);
+      if (Array.isArray(cands)) {
+        setCandidates((prev) => {
+          const merged = mergeCandidateLists(prev, cands);
+          setLeaderboard(computeLeaderboardFromCandidates(merged));
+          try {
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      }
 
       const emailList = await fetchEmails();
       if (emailList.length > 0) setEmails(emailList);
@@ -174,24 +189,31 @@ export default function App() {
     loadData();
   }, [authToken]);
 
-  // Active Multi-Device Background Polling & Visibility Sync
+  // Active Multi-Device Background Polling & Multi-Event Visibility Sync
   useEffect(() => {
+    // 2-second interval for real-time responsiveness across devices
     const interval = setInterval(() => {
       loadData();
-    }, 3000);
+    }, 2000);
 
     const handleFocus = () => loadData();
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') loadData();
     };
+    const handleOnline = () => loadData();
+    const handlePageShow = () => loadData();
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('pageshow', handlePageShow);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, [authToken]);
 
@@ -236,21 +258,8 @@ export default function App() {
       onCandidateUpdated: (incoming) => {
         if (!incoming || !incoming.id) return;
         setCandidates((prev) => {
-          const idx = prev.findIndex((c) => c.id === incoming.id || (c.details?.email && incoming.details?.email && c.details.email.toLowerCase() === incoming.details.email.toLowerCase()));
-          let updated: CandidateSubmission[];
-          if (idx >= 0) {
-            updated = [...prev];
-            updated[idx] = {
-              ...updated[idx],
-              ...incoming,
-              details: {
-                ...updated[idx].details,
-                ...(incoming.details || {})
-              }
-            };
-          } else {
-            updated = [incoming as CandidateSubmission, ...prev];
-          }
+          const updated = mergeSingleCandidate(prev, incoming as CandidateSubmission);
+          setLeaderboard(computeLeaderboardFromCandidates(updated));
           try {
             localStorage.setItem('evalpulse_all_candidates', JSON.stringify(updated));
           } catch {}
@@ -263,24 +272,15 @@ export default function App() {
 
         // If this device is that candidate, update active state
         const activeCand = currentCandidateRef.current;
-        if (activeCand && (activeCand.id === incoming.id || activeCand.details.email === incoming.details?.email)) {
+        if (activeCand && (activeCand.id === incoming.id || (activeCand.details?.email && incoming.details?.email && activeCand.details.email.toLowerCase() === incoming.details.email.toLowerCase()))) {
           setCurrentCandidateSubmission((prev) => prev ? { ...prev, ...incoming, details: { ...prev.details, ...(incoming.details || {}) } } : null);
         }
       },
       onSnapshotReceived: (cloudList) => {
         if (Array.isArray(cloudList) && cloudList.length > 0) {
           setCandidates((prev) => {
-            const map = new Map<string, CandidateSubmission>();
-            prev.forEach((c) => map.set(c.id, c));
-            cloudList.forEach((c) => {
-              const existing = map.get(c.id);
-              if (existing) {
-                map.set(c.id, { ...existing, ...c, details: { ...existing.details, ...c.details } });
-              } else {
-                map.set(c.id, c);
-              }
-            });
-            const merged = Array.from(map.values());
+            const merged = mergeCandidateLists(prev, cloudList);
+            setLeaderboard(computeLeaderboardFromCandidates(merged));
             try {
               localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
             } catch {}
@@ -445,6 +445,7 @@ export default function App() {
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         unreadEmailCount={emails.length}
         hasCandidateSubmission={!!currentCandidateSubmission}
+        onOpenSqlModal={() => setIsSqlModalOpen(true)}
       />
 
       {/* Main View Container */}
@@ -617,6 +618,12 @@ export default function App() {
             candidates={candidates}
             defaultTab={workspaceDefaultTab}
             onAddEmailNotification={(newEmail) => setEmails((prev) => [newEmail, ...prev])}
+          />
+        )}
+        {isSqlModalOpen && (
+          <SupabaseSqlModal
+            isOpen={isSqlModalOpen}
+            onClose={() => setIsSqlModalOpen(false)}
           />
         )}
       </Suspense>

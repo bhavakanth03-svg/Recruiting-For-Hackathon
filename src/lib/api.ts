@@ -6,6 +6,12 @@ import {
   INITIAL_CANDIDATE_SUBMISSIONS,
   INITIAL_EMAIL_NOTIFICATIONS
 } from '../data/defaultData';
+import {
+  fetchCandidatesFromSupabase,
+  saveCandidateToSupabase,
+  saveCandidateBatchToSupabase
+} from './supabase';
+import { mergeCandidateLists } from './candidateSync';
 
 const API_BASE = '/api';
 
@@ -73,6 +79,19 @@ export async function verifyAccessCode(accessCode: string) {
 }
 
 export async function fetchCandidates(token?: string): Promise<CandidateSubmission[]> {
+  let aggregatedCandidates: CandidateSubmission[] = [];
+
+  // 1. Fetch from Supabase Cloud Table first (ensures cross-device synchronization)
+  try {
+    const supabaseCandidates = await fetchCandidatesFromSupabase();
+    if (Array.isArray(supabaseCandidates) && supabaseCandidates.length > 0) {
+      aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, supabaseCandidates);
+    }
+  } catch (e) {
+    console.warn('Supabase DB fetch note:', e);
+  }
+
+  // 2. Fetch from Backend Express API if available
   try {
     const headers: Record<string, string> = {};
     let activeToken = token;
@@ -86,29 +105,37 @@ export async function fetchCandidates(token?: string): Promise<CandidateSubmissi
       headers,
       cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch candidates');
-    const data = await res.json();
-    if (data && Array.isArray(data.candidates)) {
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
-        } catch {}
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.candidates)) {
+        aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, data.candidates);
       }
-      return data.candidates;
     }
-    return [];
   } catch (err) {
-    console.warn('Backend fetch candidates error, checking local store:', err);
-    // Return saved local storage or initial defaults for offline resilience
-    try {
-      const stored = localStorage.getItem('evalpulse_all_candidates');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return INITIAL_CANDIDATE_SUBMISSIONS;
+    // Network or static host
   }
+
+  // 3. Merge with local storage for offline resilience
+  try {
+    const stored = localStorage.getItem('evalpulse_all_candidates');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, parsed);
+      }
+    }
+  } catch {}
+
+  if (aggregatedCandidates.length > 0) {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('evalpulse_all_candidates', JSON.stringify(aggregatedCandidates));
+      } catch {}
+    }
+    return aggregatedCandidates;
+  }
+
+  return INITIAL_CANDIDATE_SUBMISSIONS;
 }
 
 export async function fetchCandidateById(id: string): Promise<CandidateSubmission | null> {
@@ -175,7 +202,7 @@ export async function syncCandidateProgress(progress: Partial<CandidateSubmissio
   return { success: true, message: 'Local progress saved' };
 }
 
-export async function seedSampleCandidates(): Promise<{ success: boolean; count: number; candidates: CandidateSubmission[] }> {
+export async function seedSampleCandidates(): Promise<{ success: boolean; count: number; candidates: CandidateSubmission[]; leaderboard?: LeaderboardEntry[] }> {
   try {
     const res = await fetch(`${API_BASE}/candidates/seed-sample-batch`, { method: 'POST' });
     if (res.ok) {
@@ -186,13 +213,15 @@ export async function seedSampleCandidates(): Promise<{ success: boolean; count:
             localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
           } catch {}
         }
+        saveCandidateBatchToSupabase(data.candidates);
         return data;
       }
     }
   } catch (err) {
-    console.warn('Seed API network error:', err);
+    console.warn('Seed API network note, running local state rank generator:', err);
   }
-  return { success: false, count: 0, candidates: [] };
+  const result = await seedSampleStateRankCandidates();
+  return { success: true, count: result.candidates.length, candidates: result.candidates, leaderboard: result.leaderboard };
 }
 
 export async function submitAssessment(submission: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
@@ -218,6 +247,7 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
             else list.unshift(candidateObj);
             localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
           } catch {}
+          saveCandidateToSupabase(candidateObj);
           return { success: true, candidate: candidateObj, message: data.message || 'Assessment submitted successfully' };
         }
       }
@@ -282,6 +312,9 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
   } catch (e) {
     console.error('LocalStorage write error:', e);
   }
+
+  // Persist to Supabase Database for instant cross-device synchronization
+  saveCandidateToSupabase(finalCandidate);
 
   return {
     success: true,
@@ -353,6 +386,8 @@ export async function evaluateCandidate(
           evaluation: evalPayload
         };
         localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+        // Persist evaluation to Supabase DB for instant multi-device reflection
+        saveCandidateToSupabase(list[idx]);
         return {
           success: true,
           candidate: list[idx],
@@ -624,6 +659,9 @@ export async function seedSampleStateRankCandidates(): Promise<{ success: boolea
     });
     localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
   } catch {}
+
+  // Sync sample batch to Supabase Database
+  saveCandidateBatchToSupabase(sampleBatch);
 
   const leaderboard = computeLeaderboardFromCandidates(sampleBatch);
   return { success: true, leaderboard, candidates: sampleBatch };

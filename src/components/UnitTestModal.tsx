@@ -61,13 +61,12 @@ export const UnitTestModal: React.FC<UnitTestModalProps> = ({ isOpen, onClose })
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -205,6 +204,7 @@ export const UnitTestModal: React.FC<UnitTestModalProps> = ({ isOpen, onClose })
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+    )}
+  </AnimatePresence>
   );
 };

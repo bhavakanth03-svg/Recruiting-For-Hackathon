@@ -16,8 +16,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthe
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accessCode.trim()) {
@@ -44,9 +42,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthe
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Cyber Backdrop */}
-        <motion.div
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Cyber Backdrop */}
+          <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -244,6 +243,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onAuthe
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+    )}
+  </AnimatePresence>
   );
 };
