@@ -275,16 +275,14 @@ function loadSavedCandidates(): CandidateSubmission[] {
     if (fs.existsSync(CANDIDATES_FILE)) {
       const raw = fs.readFileSync(CANDIDATES_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Could not read saved candidates from file:', err);
   }
-  const initial = createInitialSampleCandidates();
-  saveCandidatesToDisk(initial);
-  return initial;
+  return [];
 }
 
 function saveCandidatesToDisk(items: CandidateSubmission[]) {
@@ -328,6 +326,11 @@ function initServerSupabaseSync() {
         if (payload?.payload?.candidate) {
           mergeCandidateFromCloud(payload.payload.candidate);
         }
+      })
+      .on('broadcast', { event: 'CANDIDATE_LIST_RESET' }, () => {
+        candidates = [];
+        saveCandidatesToDisk([]);
+        broadcastEvent('LEADERBOARD_UPDATED', { message: 'Candidate list cleared' });
       })
       .on('broadcast', { event: 'REQUEST_SYNC' }, async () => {
         if (supabaseServerChannel && candidates.length > 0) {
@@ -882,6 +885,14 @@ app.post('/api/candidates/seed-sample-batch', (req, res) => {
 
   broadcastEvent('LEADERBOARD_UPDATED', { message: 'Sample batch seeded with full candidate answers' });
   res.json({ success: true, count: sampleBatch.length, candidates });
+});
+
+// Clear all candidates for fresh live event launch
+app.post('/api/candidates/clear-all', (req, res) => {
+  candidates = [];
+  saveCandidatesToDisk([]);
+  broadcastEvent('LEADERBOARD_UPDATED', { message: 'All candidate logs deleted' });
+  res.json({ success: true, message: 'All candidates wiped successfully' });
 });
 
 // 8. Email Outbox Logs

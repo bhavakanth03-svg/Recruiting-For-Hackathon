@@ -21,7 +21,8 @@ import {
   fetchEmails,
   subscribeToRealTimeEvents,
   seedSampleStateRankCandidates,
-  computeLeaderboardFromCandidates
+  computeLeaderboardFromCandidates,
+  clearAllCandidatesData
 } from './lib/api';
 import {
   mergeCandidateLists,
@@ -287,6 +288,12 @@ export default function App() {
             return merged;
           });
         }
+      },
+      onCandidateListReset: () => {
+        setCandidates([]);
+        setLeaderboard([]);
+        setCurrentCandidateSubmission(null);
+        addToast('info', 'Live Reset Broadcast', 'Candidate logs have been reset for live launch.');
       }
     });
 
@@ -423,6 +430,21 @@ export default function App() {
     }
   };
 
+  // Reset all candidates across cloud and devices for fresh launch
+  const handleClearAllCandidates = async () => {
+    try {
+      const res = await clearAllCandidatesData();
+      setCandidates([]);
+      setLeaderboard([]);
+      setCurrentCandidateSubmission(null);
+      addToast('success', 'Clean Slate Initialized', res.message || 'Candidate logs wiped for tomorrow\'s live launch.');
+      return true;
+    } catch (err) {
+      addToast('error', 'Reset Error', 'Failed to reset candidate logs.');
+      return false;
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Navigation Header */}
@@ -494,6 +516,8 @@ export default function App() {
                   candidates={candidates}
                   onEvaluateCandidate={handleEvaluateCandidate}
                   onRefresh={loadData}
+                  onClearAllCandidates={handleClearAllCandidates}
+                  onOpenSqlModal={() => setIsSqlModalOpen(true)}
                   isEvaluating={isEvaluating}
                   onOpenEmailOutbox={() => {
                     setWorkspaceDefaultTab('gmail');

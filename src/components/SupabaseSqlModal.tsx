@@ -89,6 +89,12 @@ FOR UPDATE
 USING (true) 
 WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public delete candidates" ON public.candidates;
+CREATE POLICY "Allow public delete candidates" 
+ON public.candidates 
+FOR DELETE 
+USING (true);
+
 -- 5. Enable Realtime Replication for instant multi-device sync
 DO $$
 BEGIN
@@ -149,6 +155,7 @@ ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read candidates" ON public.candidates FOR SELECT USING (true);
 CREATE POLICY "Allow public insert candidates" ON public.candidates FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update candidates" ON public.candidates FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public delete candidates" ON public.candidates FOR DELETE USING (true);
 
 DO $$
 BEGIN

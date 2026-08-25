@@ -30,6 +30,7 @@ type PeerCountCallback = (count: number) => void;
 const updateListeners: Set<CandidateUpdateCallback> = new Set();
 const snapshotListeners: Set<CandidateListCallback> = new Set();
 const peerListeners: Set<PeerCountCallback> = new Set();
+const resetListeners: Set<() => void> = new Set();
 
 /**
  * Ensures the singleton Supabase Realtime channel is initialized only once
@@ -47,6 +48,16 @@ function ensureChannelInitialized() {
         broadcast: { ack: true },
         presence: { key: 'evalpulse-client' }
       }
+    });
+
+    // 0. Listen for Candidate List Reset (Fresh start)
+    channel.on('broadcast', { event: 'CANDIDATE_LIST_RESET' }, () => {
+      try {
+        localStorage.removeItem('evalpulse_all_candidates');
+      } catch {}
+      resetListeners.forEach((cb) => {
+        try { cb(); } catch (e) { console.warn('Reset listener error:', e); }
+      });
     });
 
     // 1. Listen for Live Candidate Progress
@@ -191,10 +202,12 @@ export function initSupabaseSync(options?: {
   onCandidateUpdated?: CandidateUpdateCallback;
   onSnapshotReceived?: CandidateListCallback;
   onPeerCountChange?: PeerCountCallback;
+  onCandidateListReset?: () => void;
 }) {
   if (options?.onCandidateUpdated) updateListeners.add(options.onCandidateUpdated);
   if (options?.onSnapshotReceived) snapshotListeners.add(options.onSnapshotReceived);
   if (options?.onPeerCountChange) peerListeners.add(options.onPeerCountChange);
+  if (options?.onCandidateListReset) resetListeners.add(options.onCandidateListReset);
 
   ensureChannelInitialized();
 
@@ -215,6 +228,7 @@ export function initSupabaseSync(options?: {
     if (options?.onCandidateUpdated) updateListeners.delete(options.onCandidateUpdated);
     if (options?.onSnapshotReceived) snapshotListeners.delete(options.onSnapshotReceived);
     if (options?.onPeerCountChange) peerListeners.delete(options.onPeerCountChange);
+    if (options?.onCandidateListReset) resetListeners.delete(options.onCandidateListReset);
   };
 }
 
@@ -447,6 +461,46 @@ export async function requestSupabaseSnapshot() {
       payload: { requestedAt: new Date().toISOString() }
     });
   } catch {}
+}
+
+/**
+ * Delete all candidates from Supabase DB table
+ */
+export async function deleteAllCandidatesFromSupabase(): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('candidates')
+      .delete()
+      .neq('id', '___non_existent_id___'); // PostgreSQL delete-all condition
+    if (error) {
+      console.warn('Supabase DB delete-all notice:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('Supabase DB delete-all exception:', err);
+    return false;
+  }
+}
+
+/**
+ * Broadcast Candidate List Reset event across all devices via Supabase
+ */
+export async function broadcastCandidateListResetViaSupabase() {
+  ensureChannelInitialized();
+  try {
+    if (syncChannel && isChannelSubscribed) {
+      await syncChannel.send({
+        type: 'broadcast',
+        event: 'CANDIDATE_LIST_RESET',
+        payload: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Supabase broadcast reset error:', err);
+  }
 }
 
 /**

@@ -9,7 +9,9 @@ import {
 import {
   fetchCandidatesFromSupabase,
   saveCandidateToSupabase,
-  saveCandidateBatchToSupabase
+  saveCandidateBatchToSupabase,
+  deleteAllCandidatesFromSupabase,
+  broadcastCandidateListResetViaSupabase
 } from './supabase';
 import { mergeCandidateLists } from './candidateSync';
 
@@ -665,6 +667,29 @@ export async function seedSampleStateRankCandidates(): Promise<{ success: boolea
 
   const leaderboard = computeLeaderboardFromCandidates(sampleBatch);
   return { success: true, leaderboard, candidates: sampleBatch };
+}
+
+/**
+ * Wipe all candidate logs and start fresh for live event
+ */
+export async function clearAllCandidatesData(): Promise<{ success: boolean; message: string }> {
+  try {
+    localStorage.removeItem('evalpulse_all_candidates');
+    localStorage.removeItem('evalpulse_active_candidate');
+  } catch {}
+
+  // Delete from Supabase Database
+  await deleteAllCandidatesFromSupabase();
+
+  // Broadcast reset across all devices (phone, laptop, etc.)
+  await broadcastCandidateListResetViaSupabase();
+
+  // Try optional server clear
+  try {
+    await fetch(`${API_BASE}/candidates/clear-all`, { method: 'POST' });
+  } catch {}
+
+  return { success: true, message: 'All candidate logs deleted. Fresh slate initialized for live event.' };
 }
 
 export async function fetchEmails(): Promise<EmailNotification[]> {
