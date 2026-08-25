@@ -14,7 +14,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 const CHANNEL_NAME = 'evalpulse-crucible-sync';
 let syncChannel: RealtimeChannel | null = null;
-let isSubscribed = false;
+let isChannelSubscribed = false;
+let isChannelInitializing = false;
 
 type CandidateUpdateCallback = (candidate: CandidateSubmission | Partial<CandidateSubmission>) => void;
 type CandidateListCallback = (candidates: CandidateSubmission[]) => void;
@@ -25,7 +26,113 @@ const snapshotListeners: Set<CandidateListCallback> = new Set();
 const peerListeners: Set<PeerCountCallback> = new Set();
 
 /**
- * Initialize Supabase Realtime Channel for multi-device instant synchronization
+ * Ensures the singleton Supabase Realtime channel is initialized only once
+ */
+function ensureChannelInitialized() {
+  if (syncChannel || isChannelInitializing) {
+    return syncChannel;
+  }
+
+  isChannelInitializing = true;
+
+  try {
+    const channel = supabase.channel(CHANNEL_NAME, {
+      config: {
+        broadcast: { ack: true },
+        presence: { key: 'evalpulse-client' }
+      }
+    });
+
+    // 1. Listen for Live Candidate Progress
+    channel.on('broadcast', { event: 'CANDIDATE_PROGRESS' }, (payload) => {
+      if (payload?.payload?.candidate) {
+        const candidate: CandidateSubmission = payload.payload.candidate;
+        updateListeners.forEach((cb) => {
+          try { cb(candidate); } catch (e) { console.warn('Listener error:', e); }
+        });
+      }
+    });
+
+    // 2. Listen for Candidate Final Submission
+    channel.on('broadcast', { event: 'CANDIDATE_SUBMITTED' }, (payload) => {
+      if (payload?.payload?.candidate) {
+        const candidate: CandidateSubmission = payload.payload.candidate;
+        updateListeners.forEach((cb) => {
+          try { cb(candidate); } catch (e) { console.warn('Listener error:', e); }
+        });
+      }
+    });
+
+    // 3. Listen for Candidate Evaluation & Grading by Creator
+    channel.on('broadcast', { event: 'CANDIDATE_EVALUATED' }, (payload) => {
+      if (payload?.payload?.candidate) {
+        const candidate: CandidateSubmission = payload.payload.candidate;
+        updateListeners.forEach((cb) => {
+          try { cb(candidate); } catch (e) { console.warn('Listener error:', e); }
+        });
+      }
+    });
+
+    // 4. Listen for Snapshot Requests & Replies
+    channel.on('broadcast', { event: 'REQUEST_SYNC' }, () => {
+      try {
+        const savedRaw = localStorage.getItem('evalpulse_all_candidates');
+        if (savedRaw) {
+          const list: CandidateSubmission[] = JSON.parse(savedRaw);
+          if (Array.isArray(list) && list.length > 0) {
+            sendSupabaseSnapshot(list);
+          }
+        }
+      } catch {}
+    });
+
+    channel.on('broadcast', { event: 'SYNC_SNAPSHOT' }, (payload) => {
+      if (payload?.payload?.candidates && Array.isArray(payload.payload.candidates)) {
+        const list: CandidateSubmission[] = payload.payload.candidates;
+        snapshotListeners.forEach((cb) => {
+          try { cb(list); } catch (e) { console.warn('Listener error:', e); }
+        });
+      }
+    });
+
+    // 5. Presence state tracking
+    channel.on('presence', { event: 'sync' }, () => {
+      try {
+        const state = channel.presenceState();
+        const peerCount = Object.keys(state).length;
+        peerListeners.forEach((cb) => {
+          try { cb(peerCount); } catch (e) { console.warn('Listener error:', e); }
+        });
+      } catch {}
+    });
+
+    // Subscribe ONLY ONCE
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        isChannelSubscribed = true;
+        isChannelInitializing = false;
+        try {
+          await channel.track({
+            onlineAt: new Date().toISOString()
+          });
+        } catch {}
+
+        // Request initial snapshot from online peers
+        requestSupabaseSnapshot();
+      }
+    });
+
+    syncChannel = channel;
+  } catch (err) {
+    console.warn('Failed to initialize Supabase channel:', err);
+    isChannelInitializing = false;
+  }
+
+  return syncChannel;
+}
+
+/**
+ * Register callbacks for Supabase Realtime synchronization
  */
 export function initSupabaseSync(options?: {
   role?: 'candidate' | 'creator' | 'guest';
@@ -38,99 +145,35 @@ export function initSupabaseSync(options?: {
   if (options?.onSnapshotReceived) snapshotListeners.add(options.onSnapshotReceived);
   if (options?.onPeerCountChange) peerListeners.add(options.onPeerCountChange);
 
-  if (syncChannel && isSubscribed) {
-    // Already active, trigger sync request
+  ensureChannelInitialized();
+
+  if (isChannelSubscribed) {
     requestSupabaseSnapshot();
-    return syncChannel;
-  }
-
-  syncChannel = supabase.channel(CHANNEL_NAME, {
-    config: {
-      broadcast: { ack: true },
-      presence: { key: options?.role || 'user' }
-    }
-  });
-
-  // 1. Listen for Live Candidate Progress (as candidate writes responses/MCQs/Q25)
-  syncChannel.on('broadcast', { event: 'CANDIDATE_PROGRESS' }, (payload) => {
-    if (payload?.payload?.candidate) {
-      const candidate: CandidateSubmission = payload.payload.candidate;
-      updateListeners.forEach((cb) => cb(candidate));
-    }
-  });
-
-  // 2. Listen for Candidate Final Submission
-  syncChannel.on('broadcast', { event: 'CANDIDATE_SUBMITTED' }, (payload) => {
-    if (payload?.payload?.candidate) {
-      const candidate: CandidateSubmission = payload.payload.candidate;
-      updateListeners.forEach((cb) => cb(candidate));
-    }
-  });
-
-  // 3. Listen for Candidate Evaluation & Grading by Creator
-  syncChannel.on('broadcast', { event: 'CANDIDATE_EVALUATED' }, (payload) => {
-    if (payload?.payload?.candidate) {
-      const candidate: CandidateSubmission = payload.payload.candidate;
-      updateListeners.forEach((cb) => cb(candidate));
-    }
-  });
-
-  // 4. Listen for Snapshot Requests & Replies
-  syncChannel.on('broadcast', { event: 'REQUEST_SYNC' }, () => {
-    // If we have saved candidates in localStorage or memory, share with the requesting device
-    try {
-      const savedRaw = localStorage.getItem('evalpulse_all_candidates');
-      if (savedRaw) {
-        const list: CandidateSubmission[] = JSON.parse(savedRaw);
-        if (Array.isArray(list) && list.length > 0) {
-          sendSupabaseSnapshot(list);
-        }
-      }
-    } catch {}
-  });
-
-  syncChannel.on('broadcast', { event: 'SYNC_SNAPSHOT' }, (payload) => {
-    if (payload?.payload?.candidates && Array.isArray(payload.payload.candidates)) {
-      const list: CandidateSubmission[] = payload.payload.candidates;
-      snapshotListeners.forEach((cb) => cb(list));
-    }
-  });
-
-  // 5. Presence state tracking for active cross-device users
-  syncChannel.on('presence', { event: 'sync' }, () => {
-    if (syncChannel) {
-      const state = syncChannel.presenceState();
-      const peerCount = Object.keys(state).length;
-      peerListeners.forEach((cb) => cb(peerCount));
-    }
-  });
-
-  syncChannel.subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      isSubscribed = true;
+    if (options?.role) {
       try {
-        await syncChannel?.track({
-          role: options?.role || 'user',
-          name: options?.candidateName || 'Anonymous Device',
+        syncChannel?.track({
+          role: options.role,
+          name: options.candidateName || 'User',
           onlineAt: new Date().toISOString()
         });
       } catch {}
-
-      // Request latest candidates snapshot from any active peer or server
-      requestSupabaseSnapshot();
     }
-  });
+  }
 
-  return syncChannel;
+  return () => {
+    if (options?.onCandidateUpdated) updateListeners.delete(options.onCandidateUpdated);
+    if (options?.onSnapshotReceived) snapshotListeners.delete(options.onSnapshotReceived);
+    if (options?.onPeerCountChange) peerListeners.delete(options.onPeerCountChange);
+  };
 }
 
 /**
  * Broadcast Candidate live progress across all devices via Supabase
  */
 export async function broadcastCandidateProgressViaSupabase(candidate: Partial<CandidateSubmission>) {
-  if (!syncChannel) initSupabaseSync();
+  ensureChannelInitialized();
   try {
-    if (syncChannel) {
+    if (syncChannel && isChannelSubscribed) {
       await syncChannel.send({
         type: 'broadcast',
         event: 'CANDIDATE_PROGRESS',
@@ -149,9 +192,9 @@ export async function broadcastCandidateProgressViaSupabase(candidate: Partial<C
  * Broadcast Candidate Final Submission across all devices via Supabase
  */
 export async function broadcastCandidateSubmissionViaSupabase(candidate: Partial<CandidateSubmission>) {
-  if (!syncChannel) initSupabaseSync();
+  ensureChannelInitialized();
   try {
-    if (syncChannel) {
+    if (syncChannel && isChannelSubscribed) {
       await syncChannel.send({
         type: 'broadcast',
         event: 'CANDIDATE_SUBMITTED',
@@ -170,9 +213,9 @@ export async function broadcastCandidateSubmissionViaSupabase(candidate: Partial
  * Broadcast Candidate Evaluation results across all devices via Supabase
  */
 export async function broadcastCandidateEvaluationViaSupabase(candidate: Partial<CandidateSubmission>) {
-  if (!syncChannel) initSupabaseSync();
+  ensureChannelInitialized();
   try {
-    if (syncChannel) {
+    if (syncChannel && isChannelSubscribed) {
       await syncChannel.send({
         type: 'broadcast',
         event: 'CANDIDATE_EVALUATED',
@@ -191,7 +234,7 @@ export async function broadcastCandidateEvaluationViaSupabase(candidate: Partial
  * Request candidate list snapshot from other online devices via Supabase
  */
 export async function requestSupabaseSnapshot() {
-  if (!syncChannel) return;
+  if (!syncChannel || !isChannelSubscribed) return;
   try {
     await syncChannel.send({
       type: 'broadcast',
@@ -205,7 +248,7 @@ export async function requestSupabaseSnapshot() {
  * Send full candidate snapshot to peer devices via Supabase
  */
 export async function sendSupabaseSnapshot(candidates: CandidateSubmission[]) {
-  if (!syncChannel || !Array.isArray(candidates) || candidates.length === 0) return;
+  if (!syncChannel || !isChannelSubscribed || !Array.isArray(candidates) || candidates.length === 0) return;
   try {
     await syncChannel.send({
       type: 'broadcast',

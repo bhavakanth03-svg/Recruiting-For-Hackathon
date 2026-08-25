@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Navbar } from './components/Navbar';
 import { LoginModal } from './components/LoginModal';
 import { ToastContainer, ToastMessage } from './components/ToastContainer';
@@ -225,8 +225,13 @@ export default function App() {
   }, [currentCandidateSubmission]);
 
   // Supabase Real-Time Multi-Device Cloud Synchronization
+  const currentCandidateRef = useRef(currentCandidateSubmission);
   useEffect(() => {
-    initSupabaseSync({
+    currentCandidateRef.current = currentCandidateSubmission;
+  }, [currentCandidateSubmission]);
+
+  useEffect(() => {
+    const cleanup = initSupabaseSync({
       role: currentRole === 'creator' ? 'creator' : 'candidate',
       onCandidateUpdated: (incoming) => {
         if (!incoming || !incoming.id) return;
@@ -244,7 +249,7 @@ export default function App() {
               }
             };
           } else {
-            updated = [incoming, ...prev];
+            updated = [incoming as CandidateSubmission, ...prev];
           }
           try {
             localStorage.setItem('evalpulse_all_candidates', JSON.stringify(updated));
@@ -257,8 +262,9 @@ export default function App() {
         }
 
         // If this device is that candidate, update active state
-        if (currentCandidateSubmission && (currentCandidateSubmission.id === incoming.id || currentCandidateSubmission.details.email === incoming.details.email)) {
-          setCurrentCandidateSubmission(incoming);
+        const activeCand = currentCandidateRef.current;
+        if (activeCand && (activeCand.id === incoming.id || activeCand.details.email === incoming.details?.email)) {
+          setCurrentCandidateSubmission((prev) => prev ? { ...prev, ...incoming, details: { ...prev.details, ...(incoming.details || {}) } } : null);
         }
       },
       onSnapshotReceived: (cloudList) => {
@@ -286,7 +292,11 @@ export default function App() {
 
     // Request snapshot on launch
     requestSupabaseSnapshot();
-  }, [currentRole, currentCandidateSubmission]);
+
+    return () => {
+      cleanup();
+    };
+  }, [currentRole]);
 
   // Role Authentication Handler
   const handleAuthenticate = async (code: string) => {
