@@ -20,7 +20,6 @@ import {
   fetchLeaderboard,
   fetchEmails,
   subscribeToRealTimeEvents,
-  seedSampleStateRankCandidates,
   computeLeaderboardFromCandidates,
   clearAllCandidatesData
 } from './lib/api';
@@ -164,19 +163,16 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Load & Synchronize Candidates across Supabase Cloud & Local State
+  // Load & Synchronize Candidates directly from Supabase Cloud DB as Single Source of Truth
   const loadData = async () => {
     try {
       const cands = await fetchCandidates(authToken);
       if (Array.isArray(cands)) {
-        setCandidates((prev) => {
-          const merged = mergeCandidateLists(prev, cands);
-          setLeaderboard(computeLeaderboardFromCandidates(merged));
-          try {
-            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
+        setCandidates(cands);
+        setLeaderboard(computeLeaderboardFromCandidates(cands));
+        try {
+          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(cands));
+        } catch {}
       }
 
       const emailList = await fetchEmails();
@@ -192,10 +188,10 @@ export default function App() {
 
   // Active Multi-Device Background Polling & Multi-Event Visibility Sync
   useEffect(() => {
-    // 2-second interval for real-time responsiveness across devices
+    // 5-second interval for background sync fallback alongside real-time Supabase push events
     const interval = setInterval(() => {
       loadData();
-    }, 2000);
+    }, 5000);
 
     const handleFocus = () => loadData();
     const handleVisibility = () => {
@@ -278,21 +274,22 @@ export default function App() {
         }
       },
       onSnapshotReceived: (cloudList) => {
-        if (Array.isArray(cloudList) && cloudList.length > 0) {
-          setCandidates((prev) => {
-            const merged = mergeCandidateLists(prev, cloudList);
-            setLeaderboard(computeLeaderboardFromCandidates(merged));
-            try {
-              localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
+        if (Array.isArray(cloudList)) {
+          setCandidates(cloudList);
+          setLeaderboard(computeLeaderboardFromCandidates(cloudList));
+          try {
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(cloudList));
+          } catch {}
         }
       },
       onCandidateListReset: () => {
         setCandidates([]);
         setLeaderboard([]);
         setCurrentCandidateSubmission(null);
+        try {
+          localStorage.removeItem('evalpulse_all_candidates');
+          localStorage.removeItem('evalpulse_candidate_submission');
+        } catch {}
         addToast('info', 'Live Reset Broadcast', 'Candidate logs have been reset for live launch.');
       }
     });
@@ -575,12 +572,6 @@ export default function App() {
               currentCandidateId={currentCandidateSubmission?.id}
               isCreator={currentRole === 'creator'}
               onNavigate={setActiveView}
-              onSeedSampleData={async () => {
-                const res = await seedSampleStateRankCandidates();
-                setLeaderboard(res.leaderboard);
-                setCandidates(res.candidates);
-                addToast('success', 'State Rank Scholars Loaded', 'Loaded top merit leaderboard entries.');
-              }}
             />
           )}
         </Suspense>

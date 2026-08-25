@@ -26,7 +26,6 @@ interface LeaderboardProps {
   currentCandidateId?: string;
   isCreator?: boolean;
   onNavigate?: (view: any) => void;
-  onSeedSampleData?: () => void;
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({
@@ -34,8 +33,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   onRefresh,
   currentCandidateId,
   isCreator,
-  onNavigate,
-  onSeedSampleData
+  onNavigate
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [standardFilter, setStandardFilter] = useState('all');
@@ -84,16 +82,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-center">
-          {onSeedSampleData && (
-            <button
-              onClick={onSeedSampleData}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-cyber-mono font-bold uppercase bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 shadow-sm transition-all hover:scale-105"
-            >
-              <Zap className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Load Top Scholars</span>
-            </button>
-          )}
-
           <button
             onClick={handleManualRefresh}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-sm transition-colors"
@@ -286,16 +274,6 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Take Assessment Now</span>
-                </button>
-              )}
-
-              {onSeedSampleData && (
-                <button
-                  onClick={onSeedSampleData}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-cyber-mono font-bold uppercase bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-200 hover:text-cyan-300 transition-all"
-                >
-                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Seed Sample State Rankers</span>
                 </button>
               )}
             </div>

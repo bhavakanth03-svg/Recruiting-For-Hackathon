@@ -81,19 +81,23 @@ export async function verifyAccessCode(accessCode: string) {
 }
 
 export async function fetchCandidates(token?: string): Promise<CandidateSubmission[]> {
-  let aggregatedCandidates: CandidateSubmission[] = [];
-
-  // 1. Fetch from Supabase Cloud Table first (ensures cross-device synchronization)
+  // 1. Supabase Cloud DB is the absolute Single Source of Truth
   try {
     const supabaseCandidates = await fetchCandidatesFromSupabase();
-    if (Array.isArray(supabaseCandidates) && supabaseCandidates.length > 0) {
-      aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, supabaseCandidates);
+    if (Array.isArray(supabaseCandidates)) {
+      // Sync fresh Supabase DB snapshot to local storage cache
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(supabaseCandidates));
+        } catch {}
+      }
+      return supabaseCandidates;
     }
   } catch (e) {
     console.warn('Supabase DB fetch note:', e);
   }
 
-  // 2. Fetch from Backend Express API if available
+  // 2. Fallback to Express backend if Supabase DB is temporarily unreachable
   try {
     const headers: Record<string, string> = {};
     let activeToken = token;
@@ -110,32 +114,28 @@ export async function fetchCandidates(token?: string): Promise<CandidateSubmissi
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.candidates)) {
-        aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, data.candidates);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
+          } catch {}
+        }
+        return data.candidates;
       }
     }
   } catch (err) {
     // Network or static host
   }
 
-  // 3. Merge with local storage for offline resilience
+  // 3. Fallback to cached local storage only in true offline scenarios
   try {
     const stored = localStorage.getItem('evalpulse_all_candidates');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        aggregatedCandidates = mergeCandidateLists(aggregatedCandidates, parsed);
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
     }
   } catch {}
-
-  if (aggregatedCandidates.length > 0) {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('evalpulse_all_candidates', JSON.stringify(aggregatedCandidates));
-      } catch {}
-    }
-    return aggregatedCandidates;
-  }
 
   return INITIAL_CANDIDATE_SUBMISSIONS;
 }
@@ -202,28 +202,6 @@ export async function syncCandidateProgress(progress: Partial<CandidateSubmissio
   }
 
   return { success: true, message: 'Local progress saved' };
-}
-
-export async function seedSampleCandidates(): Promise<{ success: boolean; count: number; candidates: CandidateSubmission[]; leaderboard?: LeaderboardEntry[] }> {
-  try {
-    const res = await fetch(`${API_BASE}/candidates/seed-sample-batch`, { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && Array.isArray(data.candidates)) {
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
-          } catch {}
-        }
-        saveCandidateBatchToSupabase(data.candidates);
-        return data;
-      }
-    }
-  } catch (err) {
-    console.warn('Seed API network note, running local state rank generator:', err);
-  }
-  const result = await seedSampleStateRankCandidates();
-  return { success: true, count: result.candidates.length, candidates: result.candidates, leaderboard: result.leaderboard };
 }
 
 export async function submitAssessment(submission: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
@@ -448,225 +426,41 @@ export function computeLeaderboardFromCandidates(candidatesList: CandidateSubmis
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  let serverEntries: LeaderboardEntry[] = [];
+  try {
+    // 1. Query Supabase directly for published candidate evaluations
+    const candidates = await fetchCandidatesFromSupabase();
+    if (Array.isArray(candidates) && candidates.length > 0) {
+      return computeLeaderboardFromCandidates(candidates);
+    }
+  } catch (err) {
+    console.warn('Error computing leaderboard from Supabase:', err);
+  }
+
+  // 2. Fallback to server leaderboard endpoint
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.leaderboard)) {
-        serverEntries = data.leaderboard;
+        return data.leaderboard;
       }
     }
   } catch (err) {
-    console.warn('API error fetching server leaderboard, reading local storage:', err);
+    console.warn('API error fetching server leaderboard:', err);
   }
 
-  // Gather all local candidates from storage for seamless client synchronization
-  let localCandidates: CandidateSubmission[] = [];
+  // 3. Fallback to cached local storage
   try {
     const storedAll = localStorage.getItem('evalpulse_all_candidates');
     if (storedAll) {
       const parsed = JSON.parse(storedAll);
-      if (Array.isArray(parsed)) localCandidates = parsed;
-    }
-    const currentSub = localStorage.getItem('evalpulse_candidate_submission');
-    if (currentSub) {
-      const parsedSub = JSON.parse(currentSub);
-      if (parsedSub && parsedSub.id) {
-        const exists = localCandidates.some((c) => c.id === parsedSub.id);
-        if (!exists) {
-          localCandidates.unshift(parsedSub);
-        } else {
-          const idx = localCandidates.findIndex((c) => c.id === parsedSub.id);
-          localCandidates[idx] = parsedSub;
-        }
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return computeLeaderboardFromCandidates(parsed);
       }
     }
   } catch {}
 
-  // If server provided entries and there are no extra local candidates, return server entries
-  if (serverEntries.length > 0 && localCandidates.length === 0) {
-    return serverEntries;
-  }
-
-  // Merge server entries and local candidates by ID
-  const candidateMap = new Map<string, CandidateSubmission>();
-  localCandidates.forEach((c) => {
-    if (c && c.id) candidateMap.set(c.id, c);
-  });
-
-  // Convert server entries to dummy candidate submissions if not in map
-  serverEntries.forEach((entry) => {
-    if (!candidateMap.has(entry.candidateId)) {
-      candidateMap.set(entry.candidateId, {
-        id: entry.candidateId,
-        candidateCode: 'CANDIDATE-2025',
-        details: {
-          fullName: entry.candidateName,
-          email: '',
-          phone: '',
-          role: entry.role || 'Full Stack Developer',
-          schoolName: entry.schoolName,
-          standard: entry.standard,
-          githubProfile: entry.githubProfile
-        },
-        status: 'evaluated',
-        answers: [],
-        startedAt: entry.submittedAt,
-        submittedAt: entry.submittedAt,
-        timeSpentSeconds: 1800,
-        evaluation: {
-          mcqScore: 72,
-          websitePromptDesign: 14,
-          websitePromptFunctionality: 14,
-          totalScore: entry.totalScore,
-          grade: (entry.grade as any) || 'A',
-          badge: entry.badge,
-          feedback: 'Evaluated',
-          evaluatedAt: entry.evaluatedAt,
-          evaluatedBy: 'Lead CS Board Evaluator',
-          isPublishedToLeaderboard: true
-        }
-      });
-    }
-  });
-
-  const mergedCandidates = Array.from(candidateMap.values());
-  const finalLeaderboard = computeLeaderboardFromCandidates(mergedCandidates);
-
-  return finalLeaderboard.length > 0 ? finalLeaderboard : serverEntries;
-}
-
-export async function seedSampleStateRankCandidates(): Promise<{ success: boolean; leaderboard: LeaderboardEntry[]; candidates: CandidateSubmission[] }> {
-  const now = new Date().toISOString();
-  const sampleBatch: CandidateSubmission[] = [
-    {
-      id: 'cand-tn-001',
-      candidateCode: 'CANDIDATE-2025',
-      details: {
-        fullName: 'Bhavakanth K',
-        email: 'bhavakanth1047@gmail.com',
-        phone: '6380650379',
-        role: 'Full Stack Developer',
-        schoolName: 'Chennai Model Higher Secondary School',
-        standard: '12th Computer Science',
-        githubProfile: 'https://github.com/bhavakanth1047',
-        notes: 'State Rank Candidate'
-      },
-      status: 'evaluated',
-      answers: [],
-      startedAt: new Date(Date.now() - 3600000).toISOString(),
-      submittedAt: new Date(Date.now() - 1800000).toISOString(),
-      timeSpentSeconds: 1650,
-      evaluation: {
-        mcqScore: 72,
-        websitePromptDesign: 14,
-        websitePromptFunctionality: 14,
-        totalScore: 100,
-        grade: 'A+',
-        badge: 'State Rank Gold',
-        feedback: 'Exceptional mastery of C++, Python, SQL, and full-stack web architecture with live sandbox prompt design.',
-        internalNotes: 'Top rank candidate in Tamil Nadu Board CS.',
-        evaluatedAt: now,
-        evaluatedBy: 'Lead CS State Board Evaluator',
-        isPublishedToLeaderboard: true
-      },
-      emailDispatched: true,
-      emailDispatchedAt: now
-    },
-    {
-      id: 'cand-tn-002',
-      candidateCode: 'CANDIDATE-2025',
-      details: {
-        fullName: 'Kavitha Ramesh',
-        email: 'kavitha.ramesh@gmail.com',
-        phone: '+91 94441 23456',
-        role: 'Python & Web Developer',
-        schoolName: 'Coimbatore Government Boys & Girls HSS',
-        standard: '12th Computer Science',
-        githubProfile: 'https://github.com/kavitha-ramesh',
-        notes: 'Distinction Candidate'
-      },
-      status: 'evaluated',
-      answers: [],
-      startedAt: new Date(Date.now() - 7200000).toISOString(),
-      submittedAt: new Date(Date.now() - 5400000).toISOString(),
-      timeSpentSeconds: 1720,
-      evaluation: {
-        mcqScore: 69,
-        websitePromptDesign: 14,
-        websitePromptFunctionality: 13,
-        totalScore: 96,
-        grade: 'A+',
-        badge: 'Silver Scholar',
-        feedback: 'Superb understanding of Python OOP and SQL Relational joins with clean CSS design.',
-        internalNotes: 'Rank #2 candidate.',
-        evaluatedAt: now,
-        evaluatedBy: 'Lead CS State Board Evaluator',
-        isPublishedToLeaderboard: true
-      },
-      emailDispatched: true,
-      emailDispatchedAt: now
-    },
-    {
-      id: 'cand-tn-003',
-      candidateCode: 'CANDIDATE-2025',
-      details: {
-        fullName: 'Senthil Nathan',
-        email: 'senthil.nathan@gmail.com',
-        phone: '+91 98840 98765',
-        role: 'Systems & Web Architect',
-        schoolName: 'Madurai Central Higher Secondary School',
-        standard: '11th Computer Science',
-        githubProfile: 'https://github.com/senthil-nathan',
-        notes: '11th Standard CS Prodigy'
-      },
-      status: 'evaluated',
-      answers: [],
-      startedAt: new Date(Date.now() - 10800000).toISOString(),
-      submittedAt: new Date(Date.now() - 9000000).toISOString(),
-      timeSpentSeconds: 1800,
-      evaluation: {
-        mcqScore: 66,
-        websitePromptDesign: 13,
-        websitePromptFunctionality: 13,
-        totalScore: 92,
-        grade: 'A',
-        badge: 'Bronze Scholar',
-        feedback: 'Strong understanding of C++ memory pointers, dynamic allocation, and HTML5 layout design.',
-        internalNotes: 'Rank #3 candidate.',
-        evaluatedAt: now,
-        evaluatedBy: 'Lead CS State Board Evaluator',
-        isPublishedToLeaderboard: true
-      },
-      emailDispatched: true,
-      emailDispatchedAt: now
-    }
-  ];
-
-  // Try server seed
-  try {
-    await fetch(`${API_BASE}/candidates/seed-sample-batch`, { method: 'POST' });
-  } catch {}
-
-  // Update local storage
-  try {
-    const existingRaw = localStorage.getItem('evalpulse_all_candidates');
-    let list: CandidateSubmission[] = existingRaw ? JSON.parse(existingRaw) : [];
-    if (!Array.isArray(list)) list = [];
-    sampleBatch.forEach((item) => {
-      const idx = list.findIndex((c) => c.id === item.id);
-      if (idx >= 0) list[idx] = item;
-      else list.push(item);
-    });
-    localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
-  } catch {}
-
-  // Sync sample batch to Supabase Database
-  saveCandidateBatchToSupabase(sampleBatch);
-
-  const leaderboard = computeLeaderboardFromCandidates(sampleBatch);
-  return { success: true, leaderboard, candidates: sampleBatch };
+  return [];
 }
 
 /**

@@ -51,7 +51,7 @@ import {
   sendEmailViaGmail,
   getGmailAccessToken
 } from '../lib/gmail';
-import { seedSampleCandidates, fetchCandidateById } from '../lib/api';
+import { fetchCandidateById } from '../lib/api';
 import { SUPABASE_URL, requestSupabaseSnapshot, sendSupabaseSnapshot } from '../lib/supabase';
 
 interface CreatorDashboardProps {
@@ -83,7 +83,6 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'pending' | 'evaluated'>('all');
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateSubmission | null>(null);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -293,20 +292,6 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
     }
   };
 
-  // Seed sample candidates on demand
-  const handleSeedBatch = async () => {
-    setIsSeeding(true);
-    try {
-      await seedSampleCandidates();
-      onRefresh();
-      confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
-    } catch (err) {
-      console.warn('Seed error:', err);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
-
   // Export full cohort answers JSON
   const handleExportCohort = () => {
     const exportPayload = {
@@ -421,16 +406,6 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
           >
             <Download className="w-3.5 h-3.5 text-cyan-500" />
             <span>Export Responses</span>
-          </button>
-
-          <button
-            disabled={isSeeding}
-            onClick={handleSeedBatch}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 shadow-sm transition-colors"
-            title="Seed top sample CS scholars with complete answers"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{isSeeding ? 'Seeding...' : 'Seed Sample Cohort'}</span>
           </button>
 
           <button
@@ -584,15 +559,9 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
       {/* 4. CANDIDATES PIPELINE TABLE */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-slate-900/5 dark:shadow-black/40 overflow-hidden">
         {filteredCandidates.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-sm space-y-3">
-            <p>No student submissions found matching your search.</p>
-            <button
-              onClick={handleSeedBatch}
-              className="px-4 py-2 rounded-2xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all inline-flex items-center gap-2"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Seed Sample CS Candidates</span>
-            </button>
+          <div className="py-16 text-center text-slate-400 text-sm space-y-2">
+            <p className="font-semibold text-slate-700 dark:text-slate-300">No candidates found</p>
+            <p className="text-xs text-slate-400">Candidate submissions will appear here automatically in real time as students submit on mobile or desktop.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
