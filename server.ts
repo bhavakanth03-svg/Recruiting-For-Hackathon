@@ -516,16 +516,44 @@ app.post('/api/candidates/check-profile', (req, res) => {
 
 // 5.6 Creator Grant Rewrite Permission to a Candidate
 app.post('/api/candidates/grant-rewrite', (req, res) => {
-  const { candidateId, email, phone, grantedBy } = req.body || {};
+  const body = req.body || {};
+  const candidateId = typeof body.candidateId === 'object' && body.candidateId ? body.candidateId.id : (body.candidateId || (body.candidate && body.candidate.id));
+  const email = body.email || (body.candidate && body.candidate.details && body.candidate.details.email);
+  const phone = body.phone || (body.candidate && body.candidate.details && body.candidate.details.phone);
+  const grantedBy = body.grantedBy || 'Assessment Creator';
+
   const normEmail = (email || '').trim().toLowerCase();
   const normPhone = (phone || '').replace(/\D/g, '');
 
-  const index = candidates.findIndex((c) => {
+  let index = candidates.findIndex((c) => {
     if (candidateId && c.id === candidateId) return true;
-    if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
-    if (normPhone && c.details.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
+    if (normEmail && c.details?.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+    if (normPhone && c.details?.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
     return false;
   });
+
+  if (index === -1 && (body.candidate || candidateId || normEmail || normPhone)) {
+    // If not found in server memory (e.g. server restarted or client local state), initialize the candidate entry
+    const newCand: CandidateSubmission = body.candidate || {
+      id: candidateId || `CAND-${Date.now()}`,
+      candidateCode: 'CANDIDATE-2025',
+      details: {
+        fullName: body.fullName || 'Candidate',
+        email: email || '',
+        phone: phone || '',
+        collegeName: '',
+        branch: '',
+        yearOfStudy: '',
+        githubUrl: ''
+      },
+      status: 'in_progress',
+      answers: [],
+      timeSpentSeconds: 0,
+      startedAt: new Date().toISOString()
+    };
+    candidates.unshift(newCand);
+    index = 0;
+  }
 
   if (index >= 0) {
     candidates[index] = {

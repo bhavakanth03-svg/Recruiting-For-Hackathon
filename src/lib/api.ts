@@ -259,16 +259,47 @@ export async function checkCandidateProfile(params: { email?: string; phone?: st
   return { alreadySubmitted: false, allowRewrite: false, existingCandidate: null };
 }
 
-export async function grantCandidateRewrite(params: { candidateId?: string; email?: string; phone?: string; grantedBy?: string }): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
+export async function grantCandidateRewrite(params: { candidate?: CandidateSubmission; candidateId?: string; email?: string; phone?: string; fullName?: string; grantedBy?: string }): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
+  const normEmail = (params.email || params.candidate?.details?.email || '').trim().toLowerCase();
+  const normPhone = (params.phone || params.candidate?.details?.phone || '').replace(/\D/g, '');
+  const candidateId = params.candidateId || params.candidate?.id;
+
   try {
     const res = await fetch(`${API_BASE}/candidates/grant-rewrite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
+      body: JSON.stringify({
+        ...params,
+        candidateId,
+        email: normEmail,
+        phone: normPhone
+      })
     });
     if (res.ok) {
       const data = await res.json();
-      return data;
+      if (data.success && data.candidate) {
+        // Synchronize local storage as well
+        try {
+          const raw = localStorage.getItem('evalpulse_all_candidates');
+          const list: CandidateSubmission[] = raw ? JSON.parse(raw) : [];
+          const idx = list.findIndex(c => c.id === candidateId || (normEmail && c.details?.email?.toLowerCase() === normEmail) || (normPhone && c.details?.phone?.replace(/\D/g, '') === normPhone));
+          if (idx >= 0) {
+            list[idx] = data.candidate;
+          } else {
+            list.unshift(data.candidate);
+          }
+          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+
+          const currentRaw = localStorage.getItem('evalpulse_candidate_submission');
+          if (currentRaw) {
+            const cur: CandidateSubmission = JSON.parse(currentRaw);
+            if (cur.id === candidateId || (normEmail && cur.details?.email?.toLowerCase() === normEmail) || (normPhone && cur.details?.phone?.replace(/\D/g, '') === normPhone)) {
+              localStorage.setItem('evalpulse_candidate_submission', JSON.stringify(data.candidate));
+            }
+          }
+        } catch {}
+        return data;
+      }
     }
   } catch (err) {
     console.warn('Grant rewrite API error:', err);
@@ -277,33 +308,39 @@ export async function grantCandidateRewrite(params: { candidateId?: string; emai
   // Local fallback
   try {
     const raw = localStorage.getItem('evalpulse_all_candidates');
-    if (raw) {
-      const list: CandidateSubmission[] = JSON.parse(raw);
-      const normEmail = (params.email || '').trim().toLowerCase();
-      const normPhone = (params.phone || '').replace(/\D/g, '');
-      const idx = list.findIndex((c) => {
-        if (params.candidateId && c.id === params.candidateId) return true;
-        if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
-        if (normPhone && c.details.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
-        return false;
-      });
-      if (idx >= 0) {
-        list[idx] = {
-          ...list[idx],
-          status: 'in_progress',
-          allowRewrite: true,
-          rewriteGrantedAt: new Date().toISOString(),
-          rewriteGrantedBy: params.grantedBy || 'Assessment Creator',
-          tabSwitchDetected: false,
-          tabSwitchCount: 0,
-          answers: [],
-          evaluation: undefined,
-          submittedAt: undefined,
-          submissionReason: 'Rewrite permitted by Creator'
-        };
-        localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
-        return { success: true, candidate: list[idx], message: 'Rewrite permission granted by Creator (saved locally).' };
+    let list: CandidateSubmission[] = raw ? JSON.parse(raw) : [];
+    let target = list.find((c) => {
+      if (candidateId && c.id === candidateId) return true;
+      if (normEmail && c.details?.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+      if (normPhone && c.details?.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
+      return false;
+    });
+
+    if (!target && params.candidate) {
+      target = { ...params.candidate };
+      list.unshift(target);
+    }
+
+    if (target) {
+      target.status = 'in_progress';
+      target.allowRewrite = true;
+      target.rewriteGrantedAt = new Date().toISOString();
+      target.rewriteGrantedBy = params.grantedBy || 'Assessment Creator';
+      target.tabSwitchDetected = false;
+      target.tabSwitchCount = 0;
+      target.answers = [];
+      target.evaluation = undefined;
+      target.submittedAt = undefined;
+      target.submissionReason = 'Rewrite permitted by Creator';
+
+      localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+
+      const currentRaw = localStorage.getItem('evalpulse_candidate_submission');
+      if (currentRaw) {
+        localStorage.setItem('evalpulse_candidate_submission', JSON.stringify(target));
       }
+
+      return { success: true, candidate: target, message: 'Rewrite permission granted by Creator.' };
     }
   } catch {}
 

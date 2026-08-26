@@ -97,17 +97,29 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
       if (onGrantRewrite) {
         await onGrantRewrite(candidate);
       } else {
-        const res = await grantCandidateRewrite({
+        await grantCandidateRewrite({
+          candidate,
           candidateId: candidate.id,
-          email: candidate.details.email,
-          phone: candidate.details.phone,
+          email: candidate.details?.email,
+          phone: candidate.details?.phone,
           grantedBy: 'Assessment Creator'
         });
-        if (res.success && res.candidate) {
-          onRefresh();
-          setSelectedCandidate(res.candidate);
-        }
       }
+      setSelectedCandidate((prev) => {
+        if (!prev) return null;
+        if (prev.id === candidate.id || (candidate.details?.email && prev.details?.email === candidate.details.email)) {
+          return {
+            ...prev,
+            status: 'in_progress',
+            allowRewrite: true,
+            tabSwitchDetected: false,
+            tabSwitchCount: 0,
+            rewriteGrantedAt: new Date().toISOString()
+          };
+        }
+        return prev;
+      });
+      onRefresh();
     } finally {
       setIsGrantingRewrite(false);
     }

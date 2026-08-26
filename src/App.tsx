@@ -476,17 +476,26 @@ export default function App() {
   };
 
   // Creator Rewrite Authorization Handler
-  const handleGrantRewrite = async (candidateId: string) => {
+  const handleGrantRewrite = async (candidateOrId: CandidateSubmission | string) => {
     try {
+      const candidateId = typeof candidateOrId === 'string' ? candidateOrId : candidateOrId.id;
+      const candidateObj = typeof candidateOrId === 'object' ? candidateOrId : candidates.find(c => c.id === candidateId);
+      const email = candidateObj?.details?.email;
+      const phone = candidateObj?.details?.phone;
+
       const res = await grantCandidateRewrite({
+        candidate: candidateObj,
         candidateId,
+        email,
+        phone,
+        fullName: candidateObj?.details?.fullName,
         grantedBy: 'assessment_creator'
       });
       if (res.success && res.candidate) {
         setCandidates((prev) =>
-          prev.map((c) => (c.id === candidateId ? res.candidate! : c))
+          prev.map((c) => (c.id === candidateId || (email && c.details?.email?.toLowerCase() === email.toLowerCase()) ? res.candidate! : c))
         );
-        if (currentCandidateSubmission && currentCandidateSubmission.id === candidateId) {
+        if (currentCandidateSubmission && (currentCandidateSubmission.id === candidateId || (email && currentCandidateSubmission.details?.email?.toLowerCase() === email.toLowerCase()))) {
           setCurrentCandidateSubmission(res.candidate);
         }
         addToast('success', 'Rewrite Feature Granted', `Rewrite authorization granted for ${res.candidate.details.fullName}.`);
