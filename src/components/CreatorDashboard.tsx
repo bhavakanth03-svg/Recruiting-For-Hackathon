@@ -39,7 +39,8 @@ import {
   Radio,
   Trash2,
   AlertTriangle,
-  Database
+  Database,
+  ShieldAlert
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission, EvaluationRubric, Question } from '../types';
@@ -621,6 +622,12 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                             <span>Score Emailed</span>
                           </span>
                         )}
+                        {cand.tabSwitchDetected && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1">
+                            <ShieldAlert className="w-3 h-3 text-rose-500" />
+                            <span>Tab Switch Auto-Submit</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
@@ -772,6 +779,21 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Anti-Cheat Tab Switch Detection Banner */}
+              {selectedCandidate.tabSwitchDetected && (
+                <div className="p-3.5 rounded-2xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 flex items-center gap-3 text-xs text-rose-700 dark:text-rose-300 font-rajdhani">
+                  <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 animate-pulse" />
+                  <div>
+                    <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px] block">
+                      Anti-Cheat Violation Flagged: Tab Switch Auto-Submit
+                    </strong>
+                    <span>
+                      The candidate switched browser tabs or minimized their window during the live assessment. The system triggered an immediate auto-submission.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* TABS: MCQS vs QUESTION 25 WEBSITE */}
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">

@@ -22,24 +22,38 @@ import {
   HelpCircle,
   KeyRound,
   ShieldCheck,
+  ShieldAlert,
+  Lock,
   Eye,
   Keyboard,
   Check,
   Laptop,
   Briefcase,
-  GitBranch
+  GitBranch,
+  ExternalLink,
+  Award,
+  AlertTriangle
 } from 'lucide-react';
 import { CandidateDetails, CandidateAnswer, Question, CandidateSubmission } from '../types';
 import { DEFAULT_QUESTIONS, CANDIDATE_ACCESS_CODE, CREATOR_ACCESS_CODE } from '../data/defaultData';
-import { verifyAccessCode, syncCandidateProgress } from '../lib/api';
+import { verifyAccessCode, syncCandidateProgress, checkCandidateProfile } from '../lib/api';
 import { broadcastCandidateProgressViaSupabase, broadcastCandidateSubmissionViaSupabase } from '../lib/supabase';
 
 interface CandidateAssessmentProps {
   initialDetails?: CandidateDetails;
   isAuthenticatedCandidate: boolean;
   onAuthenticated?: (role: 'candidate') => void;
-  onSubmitAssessment: (details: CandidateDetails, answers: CandidateAnswer[], timeSpentSeconds: number, candidateId?: string) => Promise<void>;
+  onSubmitAssessment: (
+    details: CandidateDetails,
+    answers: CandidateAnswer[],
+    timeSpentSeconds: number,
+    candidateId?: string,
+    tabSwitchDetected?: boolean
+  ) => Promise<void>;
   isSubmitting: boolean;
+  existingCandidates?: CandidateSubmission[];
+  currentSubmission?: CandidateSubmission | null;
+  onViewExistingSubmission?: (candidate: CandidateSubmission) => void;
 }
 
 export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
@@ -47,12 +61,15 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   isAuthenticatedCandidate,
   onAuthenticated,
   onSubmitAssessment,
-  isSubmitting
+  isSubmitting,
+  existingCandidates,
+  currentSubmission,
+  onViewExistingSubmission
 }) => {
   const TOTAL_TIME_SECONDS = 60 * 60;
 
   // Persistent Candidate ID across devices / sessions
-  const [candidateId] = useState<string>(() => {
+  const [candidateId, setCandidateId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('evalpulse_candidate_id');
       if (saved) return saved;
@@ -62,6 +79,19 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     }
     return `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
   });
+
+  // Locked Profile State (if student has already completed their single attempt)
+  const [lockedCandidateProfile, setLockedCandidateProfile] = useState<CandidateSubmission | null>(() => {
+    if (currentSubmission && (currentSubmission.status === 'submitted' || currentSubmission.status === 'evaluated')) {
+      return currentSubmission;
+    }
+    return null;
+  });
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
+
+  // Anti-Cheat Tab Switching State
+  const [isTabSwitched, setIsTabSwitched] = useState(false);
+  const isAutoSubmittingRef = useRef(false);
 
   // Step state: 'gate' (requires access code) -> 'registration' -> 'testing' -> 'review'
   const [step, setStep] = useState<'gate' | 'registration' | 'testing' | 'review'>(() => {
@@ -344,13 +374,43 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [step, currentQuestionIndex]);
 
+  // Check if current stored submission or matching profile already exists on load
+  useEffect(() => {
+    if (currentSubmission && (currentSubmission.status === 'submitted' || currentSubmission.status === 'evaluated')) {
+      setLockedCandidateProfile(currentSubmission);
+    }
+  }, [currentSubmission]);
+
+  // Anti-Cheat: Tab Switch Detection & Auto-Submit
+  useEffect(() => {
+    if (step !== 'testing' && step !== 'review') return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        if (!isAutoSubmittingRef.current) {
+          isAutoSubmittingRef.current = true;
+          setIsTabSwitched(true);
+          const formattedAnswers = Object.values(answers);
+          const timeSpent = TOTAL_TIME_SECONDS - timeRemaining;
+          // Trigger immediate auto-submission with tabSwitchDetected = true
+          onSubmitAssessment(details, formattedAnswers, timeSpent, candidateId, true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [step, answers, details, timeRemaining, candidateId, onSubmitAssessment]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleRegistrationSubmit = (e: React.FormEvent) => {
+  const handleRegistrationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     if (!details.fullName.trim()) errors.fullName = 'Candidate name is required';
@@ -364,6 +424,47 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     }
 
     setRegistrationErrors({});
+    setIsCheckingProfile(true);
+
+    try {
+      // 1. Check local & props candidates for already submitted attempts from this profile
+      const normEmail = details.email.trim().toLowerCase();
+      const normPhone = details.phone.replace(/\D/g, '');
+      const localMatch = existingCandidates?.find((c) => {
+        if (c.status !== 'submitted' && c.status !== 'evaluated') return false;
+        if (c.id === candidateId) return true;
+        if (c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+        if (normPhone && normPhone.length >= 7 && c.details.phone) {
+          const cp = c.details.phone.replace(/\D/g, '');
+          if (cp && (cp === normPhone || cp.endsWith(normPhone) || normPhone.endsWith(cp))) return true;
+        }
+        return false;
+      });
+
+      if (localMatch) {
+        setLockedCandidateProfile(localMatch);
+        setIsCheckingProfile(false);
+        return;
+      }
+
+      // 2. Query backend API for profile duplication verification
+      const checkRes = await checkCandidateProfile({
+        email: details.email,
+        phone: details.phone,
+        candidateId
+      });
+
+      if (checkRes.alreadySubmitted && checkRes.existingCandidate) {
+        setLockedCandidateProfile(checkRes.existingCandidate);
+        setIsCheckingProfile(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Profile check error:', err);
+    } finally {
+      setIsCheckingProfile(false);
+    }
+
     setStep('testing');
 
     // Instantly sync candidate registration across all devices so creator dashboard immediately sees the student
@@ -485,8 +586,116 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
   return (
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 flex-1 flex flex-col">
-      {/* 0. STEP 1: ACCESS CODE GATE (REQUIRED BEFORE TEST) */}
-      {step === 'gate' && (
+      {/* 0. LOCKED PROFILE STATE (CANDIDATE CANNOT WRITE TEST AGAIN FROM SAME PROFILE) */}
+      {lockedCandidateProfile && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-xl mx-auto bg-slate-900/95 border border-amber-500/50 rounded-3xl p-6 sm:p-10 shadow-2xl cyber-glow-amber text-slate-100 space-y-6 text-center cyber-corner-box cyber-grid-bg relative overflow-hidden"
+        >
+          <div className="absolute inset-0 cyber-scanlines pointer-events-none opacity-20" />
+          <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto shadow-inner relative z-10">
+            <Lock className="w-8 h-8 text-amber-400" />
+          </div>
+
+          <div className="relative z-10 space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/50 text-amber-300 text-xs font-cyber-mono font-bold tracking-wider uppercase">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+              <span>SINGLE ATTEMPT ENFORCED • PROFILE LOCKED</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black font-orbitron tracking-wider text-white">
+              Assessment Already Completed
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 font-rajdhani leading-relaxed max-w-md mx-auto">
+              A finalized test record already exists for <strong className="text-amber-300 font-semibold">{lockedCandidateProfile.details?.fullName || 'this candidate'}</strong>. Candidates cannot write the examination again from the same profile.
+            </p>
+          </div>
+
+          {/* Existing Submission summary card */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-slate-800 text-left space-y-3 text-xs font-rajdhani relative z-10">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-slate-400 font-medium">Candidate Profile:</span>
+              <span className="text-white font-bold">{lockedCandidateProfile.details?.fullName} ({lockedCandidateProfile.details?.role})</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-slate-400 font-medium">Registered E-mail:</span>
+              <span className="text-cyan-300 font-mono">{lockedCandidateProfile.details?.email}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-slate-400 font-medium">Mobile Contact:</span>
+              <span className="text-slate-200 font-mono">{lockedCandidateProfile.details?.phone}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-slate-400 font-medium">Submission Timestamp:</span>
+              <span className="text-slate-200 font-mono">{lockedCandidateProfile.submittedAt ? new Date(lockedCandidateProfile.submittedAt).toLocaleString() : 'Finalized'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 font-medium">Examination Status:</span>
+              <span className={`px-2.5 py-0.5 rounded-full font-cyber-mono text-[10px] font-bold ${
+                lockedCandidateProfile.status === 'evaluated'
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                  : 'bg-indigo-950 text-indigo-300 border border-indigo-500/50'
+              }`}>
+                {lockedCandidateProfile.status === 'evaluated'
+                  ? `Evaluated: ${lockedCandidateProfile.evaluation?.totalScore ?? '--'}/100 (Grade ${lockedCandidateProfile.evaluation?.grade ?? 'A'})`
+                  : 'Submitted & In Evaluator Review'}
+              </span>
+            </div>
+            {lockedCandidateProfile.tabSwitchDetected && (
+              <div className="flex items-center gap-1.5 text-rose-400 text-[11px] font-cyber-mono bg-rose-950/40 p-2 rounded-xl border border-rose-800/60 mt-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>Note: This previous attempt was auto-submitted due to tab switch violation.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2.5 relative z-10 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onViewExistingSubmission) {
+                  onViewExistingSubmission(lockedCandidateProfile);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg cyber-glow-cyan transition-all hover:scale-[1.01]"
+            >
+              <Award className="w-4 h-4" />
+              <span>View My Completed Scorecard & Results</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLockedCandidateProfile(null);
+                setDetails({
+                  fullName: '',
+                  email: '',
+                  phone: '',
+                  role: 'Full Stack Developer',
+                  githubProfile: '',
+                  notes: ''
+                });
+                const newId = `cand-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+                setCandidateId(newId);
+                localStorage.setItem('evalpulse_candidate_id', newId);
+                localStorage.removeItem('evalpulse_candidate_details');
+                localStorage.removeItem('evalpulse_candidate_answers');
+                localStorage.removeItem('evalpulse_current_q');
+                localStorage.removeItem('evalpulse_time_remaining');
+                localStorage.removeItem('evalpulse_candidate_submission');
+                setStep('registration');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-white font-cyber-mono text-xs font-semibold transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+              <span>Register as a Different Candidate</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* STEP 1: ACCESS CODE GATE (REQUIRED BEFORE TEST) */}
+      {!lockedCandidateProfile && step === 'gate' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -589,7 +798,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       )}
 
       {/* 1. STEP 2: CANDIDATE REGISTRATION AND DETAILS */}
-      {step === 'registration' && (
+      {!lockedCandidateProfile && step === 'registration' && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -728,23 +937,34 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
               </div>
             </div>
 
-            {/* Instructions box */}
+            {/* Instructions box with Anti-Cheat clause */}
             <div className="p-4 rounded-2xl bg-slate-950/90 border border-cyan-500/20 text-xs text-slate-300 space-y-1.5 font-rajdhani">
               <span className="font-bold text-white flex items-center gap-1.5 font-orbitron text-[11px] text-cyan-400">
                 <Keyboard className="w-4 h-4 text-cyan-400" />
-                <span>Test Instructions & Keyboard Navigation:</span>
+                <span>Test Instructions & Anti-Cheat Regulations:</span>
               </span>
+              <p>• <strong>Anti-Cheat Proctoring</strong>: Switching tabs or minimizing the browser window will <strong>IMMEDIATELY auto-submit</strong> your examination and lock further attempts.</p>
+              <p>• <strong>Single Attempt Only</strong>: Once submitted, candidates cannot write the test again from the same profile (email/phone).</p>
               <p>• <strong>Questions 1-24</strong>: Code-based MCQs from 11th C++ & 12th Python/SQL. Choose options by clicking OR pressing <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">A</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">B</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">C</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">D</code> or <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">1</code>-<code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">4</code>.</p>
               <p>• <strong>Question 25</strong>: Website prompt challenge with real-time sandbox preview.</p>
-              <p>• <strong>Navigation</strong>: Use <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">←</code> and <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">→</code> arrows to switch questions seamlessly.</p>
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg cyber-glow-cyan transition-all hover:scale-[1.01] active:scale-[0.99] mt-6"
+              disabled={isCheckingProfile}
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg cyber-glow-cyan transition-all hover:scale-[1.01] active:scale-[0.99] mt-6 disabled:opacity-50"
             >
-              <span>Begin Assessment (60 Minutes)</span>
-              <ArrowRight className="w-4 h-4" />
+              {isCheckingProfile ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                  <span>Verifying Candidate Profile...</span>
+                </span>
+              ) : (
+                <>
+                  <span>Begin Assessment (60 Minutes)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         </motion.div>
@@ -753,6 +973,20 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       {/* 2. STEP 3: LIVE ASSESSMENT TESTING STEP (25 QUESTIONS) */}
       {step === 'testing' && (
         <div className="space-y-6">
+          {/* ANTI-CHEAT LIVE PROCTORING ALERT BANNER */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs font-rajdhani">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0 animate-pulse" />
+              <span>
+                <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px]">Anti-Cheat Active:</strong> Switching browser tabs or minimizing this window will <strong>IMMEDIATELY auto-submit</strong> your examination.
+              </span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 font-cyber-mono font-bold text-[10px] px-2.5 py-1 rounded-lg bg-rose-950/70 border border-rose-500/50 text-rose-300 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <span>PROCTORING LIVE</span>
+            </div>
+          </div>
+
           {/* Top Bar: Timer, Candidate Header, Question Stepper */}
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
             <div className="flex items-center gap-3">
@@ -1255,6 +1489,41 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
           </div>
         </motion.div>
       )}
+
+      {/* TAB SWITCH DETECTED SECURITY OVERLAY */}
+      <AnimatePresence>
+        {isTabSwitched && (
+          <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="max-w-md w-full bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl cyber-glow-rose"
+            >
+              <div className="w-16 h-16 rounded-3xl bg-rose-500/20 border border-rose-500 flex items-center justify-center text-rose-400 mx-auto shadow-inner animate-bounce">
+                <ShieldAlert className="w-8 h-8 text-rose-400" />
+              </div>
+
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950 border border-rose-500 text-rose-300 text-xs font-cyber-mono font-bold uppercase tracking-wider mb-2">
+                  SECURITY VIOLATION DETECTED
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black font-orbitron text-white">
+                  Test Auto-Submitted
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 font-rajdhani mt-2 leading-relaxed">
+                  You switched tabs or navigated away from The Crucible assessment environment. As per examination integrity rules, your test has been automatically submitted and finalized.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-rose-900/60 text-xs text-rose-300/90 font-cyber-mono flex items-center justify-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                <span>Submitting responses to evaluator...</span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

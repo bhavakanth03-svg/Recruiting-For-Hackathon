@@ -466,6 +466,44 @@ app.post('/api/candidates/progress', (req, res) => {
   });
 });
 
+// 5.5 Check if candidate profile (email or phone) has already submitted
+app.post('/api/candidates/check-profile', (req, res) => {
+  const { email, phone, candidateId } = req.body || {};
+  const normEmail = (email || '').trim().toLowerCase();
+  const normPhone = (phone || '').replace(/\D/g, '');
+
+  const existing = candidates.find((c) => {
+    if (candidateId && c.id === candidateId && (c.status === 'submitted' || c.status === 'evaluated')) {
+      return true;
+    }
+    if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail && (c.status === 'submitted' || c.status === 'evaluated')) {
+      return true;
+    }
+    if (normPhone && c.details.phone) {
+      const candPhoneNorm = c.details.phone.replace(/\D/g, '');
+      if (candPhoneNorm && candPhoneNorm.length >= 7 && (candPhoneNorm === normPhone || candPhoneNorm.endsWith(normPhone) || normPhone.endsWith(candPhoneNorm))) {
+        if (c.status === 'submitted' || c.status === 'evaluated') {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+
+  if (existing) {
+    return res.json({
+      alreadySubmitted: true,
+      existingCandidate: existing,
+      message: 'A completed assessment already exists for this candidate profile. Multiple attempts are disallowed.'
+    });
+  }
+
+  return res.json({
+    alreadySubmitted: false,
+    existingCandidate: null
+  });
+});
+
 // 6. Submit Candidate Assessment & Details
 app.post('/api/candidates/submit', (req, res) => {
   const submissionData: Partial<CandidateSubmission> = req.body || {};
@@ -482,10 +520,19 @@ app.post('/api/candidates/submit', (req, res) => {
     notes: submissionData.details?.notes || ''
   };
 
-  const existingIndex = candidates.findIndex((c) => 
-    c.id === submissionData.id || 
-    (details.email && c.details.email && c.details.email.toLowerCase() === details.email.toLowerCase())
-  );
+  const normEmail = details.email.toLowerCase();
+  const normPhone = details.phone.replace(/\D/g, '');
+
+  const existingIndex = candidates.findIndex((c) => {
+    if (submissionData.id && c.id === submissionData.id) return true;
+    if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+    if (normPhone && normPhone.length >= 7 && c.details.phone) {
+      const cPhone = c.details.phone.replace(/\D/g, '');
+      if (cPhone === normPhone) return true;
+    }
+    return false;
+  });
+
   let finalCandidate: CandidateSubmission;
 
   if (existingIndex >= 0) {
@@ -499,8 +546,10 @@ app.post('/api/candidates/submit', (req, res) => {
       },
       status: candidates[existingIndex].status === 'evaluated' ? 'evaluated' : 'submitted',
       answers: submissionData.answers || candidates[existingIndex].answers || [],
-      submittedAt: now,
-      timeSpentSeconds: submissionData.timeSpentSeconds !== undefined ? submissionData.timeSpentSeconds : (candidates[existingIndex].timeSpentSeconds || 1800)
+      submittedAt: candidates[existingIndex].submittedAt || now,
+      timeSpentSeconds: submissionData.timeSpentSeconds !== undefined ? submissionData.timeSpentSeconds : (candidates[existingIndex].timeSpentSeconds || 1800),
+      tabSwitchDetected: submissionData.tabSwitchDetected ?? candidates[existingIndex].tabSwitchDetected,
+      submissionReason: submissionData.submissionReason || candidates[existingIndex].submissionReason
     };
     candidates[existingIndex] = finalCandidate;
   } else {
@@ -512,7 +561,9 @@ app.post('/api/candidates/submit', (req, res) => {
       answers: submissionData.answers || [],
       startedAt: submissionData.startedAt || now,
       submittedAt: now,
-      timeSpentSeconds: submissionData.timeSpentSeconds || 1800
+      timeSpentSeconds: submissionData.timeSpentSeconds || 1800,
+      tabSwitchDetected: submissionData.tabSwitchDetected,
+      submissionReason: submissionData.submissionReason
     };
     candidates.unshift(finalCandidate);
   }

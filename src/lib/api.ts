@@ -212,6 +212,50 @@ export async function syncCandidateProgress(progress: Partial<CandidateSubmissio
   return { success: true, message: 'Local progress saved' };
 }
 
+export async function checkCandidateProfile(params: { email?: string; phone?: string; candidateId?: string }): Promise<{ alreadySubmitted: boolean; existingCandidate?: CandidateSubmission | null; message?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/check-profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Profile check API unreachable, checking local & supabase caches:', err);
+  }
+
+  // Check local storage fallback
+  try {
+    const raw = localStorage.getItem('evalpulse_all_candidates');
+    if (raw) {
+      const list: CandidateSubmission[] = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        const normEmail = (params.email || '').trim().toLowerCase();
+        const normPhone = (params.phone || '').replace(/\D/g, '');
+        const match = list.find((c) => {
+          if (params.candidateId && c.id === params.candidateId && (c.status === 'submitted' || c.status === 'evaluated')) return true;
+          if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail && (c.status === 'submitted' || c.status === 'evaluated')) return true;
+          if (normPhone && c.details.phone) {
+            const cp = c.details.phone.replace(/\D/g, '');
+            if (cp && cp.length >= 7 && (cp === normPhone || cp.endsWith(normPhone) || normPhone.endsWith(cp))) {
+              if (c.status === 'submitted' || c.status === 'evaluated') return true;
+            }
+          }
+          return false;
+        });
+        if (match) {
+          return { alreadySubmitted: true, existingCandidate: match, message: 'This candidate profile has already completed the assessment.' };
+        }
+      }
+    }
+  } catch {}
+
+  return { alreadySubmitted: false, existingCandidate: null };
+}
+
 export async function submitAssessment(submission: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
   try {
     const res = await fetch(`${API_BASE}/candidates/submit`, {
@@ -275,6 +319,8 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
     startedAt: submission.startedAt || now,
     submittedAt: now,
     timeSpentSeconds: submission.timeSpentSeconds || 1800,
+    tabSwitchDetected: submission.tabSwitchDetected,
+    submissionReason: submission.submissionReason,
     evaluation: {
       mcqScore: autoMcqScore,
       websitePromptDesign: 14,
@@ -282,7 +328,7 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
       totalScore: Math.min(100, autoMcqScore + 27),
       grade: autoMcqScore >= 66 ? 'A+' : autoMcqScore >= 55 ? 'A' : 'B+',
       badge: autoMcqScore >= 66 ? 'State Rank Gold' : 'TN CS Certified Scholar',
-      feedback: 'Assessment submitted. Evaluator review pending for Question 25.',
+      feedback: submission.tabSwitchDetected ? 'Assessment auto-finalized upon tab switch detection. Evaluator review pending.' : 'Assessment submitted. Evaluator review pending for Question 25.',
       evaluatedAt: now,
       evaluatedBy: 'Automated State Board System',
       isPublishedToLeaderboard: true

@@ -83,6 +83,8 @@ export interface CandidateSubmission {
   evaluation?: EvaluationRubric;
   emailDispatched?: boolean;
   emailDispatchedAt?: string;
+  tabSwitchDetected?: boolean;
+  submissionReason?: string;
 }
 
 export interface LeaderboardEntry {

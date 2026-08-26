@@ -22,7 +22,8 @@ import {
   Globe,
   Flame,
   User,
-  Phone
+  Phone,
+  ShieldAlert
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission } from '../types';
@@ -113,6 +114,17 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* PROCTORING TAB SWITCH NOTIFICATION BANNER IF APPLICABLE */}
+      {submission.tabSwitchDetected && (
+        <div className="p-4 rounded-3xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 flex items-center gap-3 text-xs text-rose-700 dark:text-rose-300 font-rajdhani">
+          <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 animate-pulse" />
+          <div>
+            <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px] block">Proctoring Security Alert: Tab Switch Finalization</strong>
+            <span>This examination attempt was automatically submitted and locked because a tab switch or browser blur violation was detected during the active test session.</span>
+          </div>
+        </div>
+      )}
 
       {/* 2. REAL-TIME EVALUATION STATUS CARD */}
       <motion.div

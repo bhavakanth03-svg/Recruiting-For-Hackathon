@@ -163,11 +163,20 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Track candidate IDs that have already triggered a submission toast to prevent repeated popups
+  const notifiedSubmissionIdsRef = useRef<Set<string>>(new Set());
+
   // Load & Synchronize Candidates directly from Supabase Cloud DB as Single Source of Truth
   const loadData = async () => {
     try {
       const cands = await fetchCandidates(authToken);
       if (Array.isArray(cands)) {
+        // Seed known submissions so existing records don't trigger toasts on load/sync
+        cands.forEach((c) => {
+          if (c.id && (c.status === 'submitted' || c.status === 'evaluated')) {
+            notifiedSubmissionIdsRef.current.add(c.id);
+          }
+        });
         setCandidates(cands);
         setLeaderboard(computeLeaderboardFromCandidates(cands));
         try {
@@ -220,7 +229,13 @@ export default function App() {
       if (event.type === 'CANDIDATE_PROGRESS_UPDATED') {
         loadData();
       } else if (event.type === 'CANDIDATE_SUBMITTED') {
-        addToast('notification', 'New Assessment Submitted', `${event.data.candidateName} submitted responses for ${event.data.role || 'CS Assessment'}.`);
+        const candId = event.data?.candidateId;
+        if (candId && !notifiedSubmissionIdsRef.current.has(candId)) {
+          notifiedSubmissionIdsRef.current.add(candId);
+          if (currentRole === 'creator') {
+            addToast('notification', 'New Assessment Submitted', `${event.data.candidateName} submitted responses for ${event.data.role || 'CS Assessment'}.`);
+          }
+        }
         loadData();
       } else if (event.type === 'CANDIDATE_EVALUATED') {
         // If the evaluated candidate matches our active session submission, update live!
@@ -241,7 +256,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [currentCandidateSubmission]);
+  }, [currentCandidateSubmission, currentRole]);
 
   // Supabase Real-Time Multi-Device Cloud Synchronization
   const currentCandidateRef = useRef(currentCandidateSubmission);
@@ -263,8 +278,12 @@ export default function App() {
           return updated;
         });
 
-        if (incoming.status === 'submitted') {
-          addToast('notification', 'Supabase Cloud Sync: New Submission', `${incoming.details?.fullName || 'Candidate'} submitted test.`);
+        // Only show new submission notification ONCE when a genuine new submission arrives
+        if (incoming.status === 'submitted' && !notifiedSubmissionIdsRef.current.has(incoming.id)) {
+          notifiedSubmissionIdsRef.current.add(incoming.id);
+          if (currentRole === 'creator') {
+            addToast('notification', 'New Assessment Submitted', `${incoming.details?.fullName || 'Candidate'} submitted test.`);
+          }
         }
 
         // If this device is that candidate, update active state
@@ -275,6 +294,11 @@ export default function App() {
       },
       onSnapshotReceived: (cloudList) => {
         if (Array.isArray(cloudList)) {
+          cloudList.forEach((c) => {
+            if (c.id && (c.status === 'submitted' || c.status === 'evaluated')) {
+              notifiedSubmissionIdsRef.current.add(c.id);
+            }
+          });
           setCandidates(cloudList);
           setLeaderboard(computeLeaderboardFromCandidates(cloudList));
           try {
@@ -283,6 +307,7 @@ export default function App() {
         }
       },
       onCandidateListReset: () => {
+        notifiedSubmissionIdsRef.current.clear();
         setCandidates([]);
         setLeaderboard([]);
         setCurrentCandidateSubmission(null);
@@ -341,7 +366,8 @@ export default function App() {
     details: CandidateDetails,
     answers: CandidateAnswer[],
     timeSpentSeconds: number,
-    candidateId?: string
+    candidateId?: string,
+    tabSwitchDetected?: boolean
   ) => {
     setIsSubmitting(true);
     try {
@@ -352,7 +378,9 @@ export default function App() {
         answers,
         timeSpentSeconds,
         candidateCode: 'CANDIDATE-2025',
-        status: 'submitted'
+        status: 'submitted',
+        tabSwitchDetected: !!tabSwitchDetected,
+        submissionReason: tabSwitchDetected ? 'Auto-submitted due to tab switch violation' : 'Standard candidate submission'
       };
 
       const res = await submitAssessment(submissionPayload);
@@ -370,7 +398,11 @@ export default function App() {
         // Broadcast immediately to Supabase Cloud for all cross-device evaluators
         broadcastCandidateSubmissionViaSupabase(res.candidate);
 
-        addToast('success', 'Assessment Submitted!', 'Your answers have been recorded. You can now view your post-submission Candidate Home.');
+        if (tabSwitchDetected) {
+          addToast('notification', 'Assessment Auto-Submitted', 'Tab switch detected! Examination finalized and locked as per proctoring rules.');
+        } else {
+          addToast('success', 'Assessment Submitted!', 'Your answers have been recorded. You can now view your post-submission Candidate Home.');
+        }
         setActiveView('home');
       } else {
         addToast('error', 'Submission Failed', res.message || 'Please check your connection and try again.');
@@ -502,6 +534,12 @@ export default function App() {
               }}
               onSubmitAssessment={handleSubmitAssessment}
               isSubmitting={isSubmitting}
+              existingCandidates={candidates}
+              currentSubmission={currentCandidateSubmission}
+              onViewExistingSubmission={(sub) => {
+                setCurrentCandidateSubmission(sub);
+                setActiveView('home');
+              }}
             />
           )}
 
