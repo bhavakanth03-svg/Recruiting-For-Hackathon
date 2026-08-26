@@ -54,6 +54,7 @@ interface CandidateAssessmentProps {
   isSubmitting: boolean;
   existingCandidates?: CandidateSubmission[];
   currentSubmission?: CandidateSubmission | null;
+  onStartRewriteSession?: (candidate?: CandidateSubmission) => void;
   onViewExistingSubmission?: (candidate: CandidateSubmission) => void;
 }
 
@@ -65,6 +66,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   isSubmitting,
   existingCandidates,
   currentSubmission,
+  onStartRewriteSession,
   onViewExistingSubmission
 }) => {
   const TOTAL_TIME_SECONDS = 60 * 60;
@@ -83,7 +85,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
   // Locked Profile State (if student has already completed their single attempt)
   const [lockedCandidateProfile, setLockedCandidateProfile] = useState<CandidateSubmission | null>(() => {
-    if (currentSubmission && (currentSubmission.status === 'submitted' || currentSubmission.status === 'evaluated')) {
+    if (currentSubmission && (currentSubmission.status === 'submitted' || currentSubmission.status === 'evaluated') && !currentSubmission.allowRewrite) {
       return currentSubmission;
     }
     return null;
@@ -378,10 +380,11 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
   // Check if current stored submission or matching profile already exists on load
   useEffect(() => {
+    if (step === 'testing' || step === 'review') return;
     if (currentSubmission && (currentSubmission.status === 'submitted' || currentSubmission.status === 'evaluated')) {
       setLockedCandidateProfile(currentSubmission);
     }
-  }, [currentSubmission]);
+  }, [currentSubmission, step]);
 
   // Anti-Cheat: Tab Switch Detection & Warning (NO AUTO-SUBMISSION)
   useEffect(() => {
@@ -417,11 +420,47 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   }, [step, answers, details, timeRemaining, candidateId]);
 
   const handleStartRewrite = () => {
-    setAnswers({});
-    try {
-      localStorage.removeItem('evalpulse_candidate_answers');
-      localStorage.removeItem('evalpulse_candidate_submission');
-    } catch {}
+    const targetCandidate = lockedCandidateProfile || currentSubmission;
+    if (targetCandidate?.details) {
+      setDetails(targetCandidate.details);
+      try {
+        localStorage.setItem('evalpulse_candidate_details', JSON.stringify(targetCandidate.details));
+      } catch {}
+    }
+    if (targetCandidate?.id) {
+      setCandidateId(targetCandidate.id);
+      try {
+        localStorage.setItem('evalpulse_candidate_id', targetCandidate.id);
+      } catch {}
+    }
+
+    const freshAnswers: Record<string, CandidateAnswer> = {};
+    DEFAULT_QUESTIONS.forEach((q) => {
+      if (q.type === 'multiple_choice') {
+        freshAnswers[q.id] = { questionId: q.id, selectedOptionIndex: undefined };
+      } else if (q.type === 'website_prompt') {
+        freshAnswers[q.id] = {
+          questionId: q.id,
+          websitePrompt: '',
+          htmlCode: q.websiteTemplate?.html || '',
+          cssCode: q.websiteTemplate?.css || '',
+          jsCode: q.websiteTemplate?.js || ''
+        };
+      } else {
+        freshAnswers[q.id] = { questionId: q.id, answerText: '' };
+      }
+    });
+    setAnswers(freshAnswers);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('evalpulse_candidate_answers', JSON.stringify(freshAnswers));
+        localStorage.removeItem('evalpulse_time_remaining');
+        localStorage.removeItem('evalpulse_current_q');
+        localStorage.setItem('evalpulse_active_step', 'testing');
+      } catch {}
+    }
+
     setTimeRemaining(TOTAL_TIME_SECONDS);
     setLockedCandidateProfile(null);
     setCurrentQuestionIndex(0);
@@ -429,10 +468,17 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     setTabSwitchCount(0);
     setShowTabSwitchWarning(false);
 
+    if (onStartRewriteSession) {
+      onStartRewriteSession(targetCandidate || undefined);
+    }
+
+    const activeId = targetCandidate?.id || candidateId;
+    const activeDetails = targetCandidate?.details || details;
+
     syncCandidateProgress({
-      id: candidateId,
+      id: activeId,
       candidateCode: 'CANDIDATE-2025',
-      details,
+      details: activeDetails,
       status: 'in_progress',
       answers: [],
       timeSpentSeconds: 0,
@@ -454,7 +500,10 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
       if (res.allowRewrite || (res.existingCandidate && res.existingCandidate.allowRewrite)) {
         if (res.existingCandidate) {
-          setLockedCandidateProfile(res.existingCandidate);
+          setLockedCandidateProfile({
+            ...res.existingCandidate,
+            allowRewrite: true
+          });
         }
       }
     } catch (err) {
@@ -503,7 +552,9 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
       if (localMatch) {
         if (localMatch.allowRewrite) {
-          setLockedCandidateProfile(null);
+          handleStartRewrite();
+          setIsCheckingProfile(false);
+          return;
         } else {
           setLockedCandidateProfile(localMatch);
           setIsCheckingProfile(false);
@@ -517,6 +568,12 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         phone: details.phone,
         candidateId
       });
+
+      if (checkRes.allowRewrite) {
+        handleStartRewrite();
+        setIsCheckingProfile(false);
+        return;
+      }
 
       if (checkRes.alreadySubmitted && checkRes.existingCandidate && !checkRes.allowRewrite) {
         setLockedCandidateProfile(checkRes.existingCandidate);

@@ -719,16 +719,21 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
-                    {!cand.allowRewrite && (
+                    {!cand.allowRewrite ? (
                       <button
                         onClick={() => handleTriggerGrantRewrite(cand)}
                         disabled={isGrantingRewrite}
                         title="Allow this candidate to retake or rewrite their assessment"
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Allow Rewrite</span>
                       </button>
+                    ) : (
+                      <span className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold bg-cyan-500/10 dark:bg-cyan-950/50 border border-cyan-500/30 text-cyan-600 dark:text-cyan-300">
+                        <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Rewrite Granted</span>
+                      </span>
                     )}
                     <button
                       onClick={() => handleOpenEvaluationModal(cand)}

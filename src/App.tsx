@@ -510,6 +510,44 @@ export default function App() {
     }
   };
 
+  // Launch fresh rewrite assessment session for candidate
+  const handleStartCandidateRewrite = (cand?: CandidateSubmission | null) => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('evalpulse_candidate_answers');
+      localStorage.removeItem('evalpulse_time_remaining');
+      localStorage.removeItem('evalpulse_current_q');
+      localStorage.setItem('evalpulse_active_step', 'testing');
+    }
+
+    const base = cand || currentCandidateSubmission;
+    if (base) {
+      const updated: CandidateSubmission = {
+        ...base,
+        status: 'in_progress',
+        allowRewrite: true,
+        answers: [],
+        evaluation: undefined,
+        submittedAt: undefined,
+        timeSpentSeconds: 0,
+        tabSwitchDetected: false,
+        tabSwitchCount: 0
+      };
+      setCurrentCandidateSubmission(updated);
+      try {
+        localStorage.setItem('evalpulse_candidate_submission', JSON.stringify(updated));
+        if (base.details) {
+          localStorage.setItem('evalpulse_candidate_details', JSON.stringify(base.details));
+        }
+      } catch {}
+    } else {
+      setCurrentCandidateSubmission(null);
+      try {
+        localStorage.removeItem('evalpulse_candidate_submission');
+      } catch {}
+    }
+    setActiveView('assessment');
+  };
+
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Navigation Header */}
@@ -554,7 +592,7 @@ export default function App() {
                 setWorkspaceDefaultTab('gmail');
                 setIsWorkspaceModalOpen(true);
               }}
-              onRetakeAssessment={() => setActiveView('assessment')}
+              onRetakeAssessment={() => handleStartCandidateRewrite(currentCandidateSubmission)}
             />
           )}
 
@@ -573,6 +611,7 @@ export default function App() {
               isSubmitting={isSubmitting}
               existingCandidates={candidates}
               currentSubmission={currentCandidateSubmission}
+              onStartRewriteSession={handleStartCandidateRewrite}
               onViewExistingSubmission={(sub) => {
                 setCurrentCandidateSubmission(sub);
                 setActiveView('home');
