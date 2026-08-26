@@ -21,7 +21,8 @@ import {
   fetchEmails,
   subscribeToRealTimeEvents,
   computeLeaderboardFromCandidates,
-  clearAllCandidatesData
+  clearAllCandidatesData,
+  grantCandidateRewrite
 } from './lib/api';
 import {
   mergeCandidateLists,
@@ -474,6 +475,32 @@ export default function App() {
     }
   };
 
+  // Creator Rewrite Authorization Handler
+  const handleGrantRewrite = async (candidateId: string) => {
+    try {
+      const res = await grantCandidateRewrite({
+        candidateId,
+        grantedBy: 'assessment_creator'
+      });
+      if (res.success && res.candidate) {
+        setCandidates((prev) =>
+          prev.map((c) => (c.id === candidateId ? res.candidate! : c))
+        );
+        if (currentCandidateSubmission && currentCandidateSubmission.id === candidateId) {
+          setCurrentCandidateSubmission(res.candidate);
+        }
+        addToast('success', 'Rewrite Feature Granted', `Rewrite authorization granted for ${res.candidate.details.fullName}.`);
+        return true;
+      } else {
+        addToast('error', 'Rewrite Grant Failed', res.message || 'Could not grant rewrite.');
+        return false;
+      }
+    } catch {
+      addToast('error', 'Rewrite Error', 'Failed to grant rewrite authorization.');
+      return false;
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Navigation Header */}
@@ -518,6 +545,7 @@ export default function App() {
                 setWorkspaceDefaultTab('gmail');
                 setIsWorkspaceModalOpen(true);
               }}
+              onRetakeAssessment={() => setActiveView('assessment')}
             />
           )}
 
@@ -552,6 +580,7 @@ export default function App() {
                   onEvaluateCandidate={handleEvaluateCandidate}
                   onRefresh={loadData}
                   onClearAllCandidates={handleClearAllCandidates}
+                  onGrantRewrite={handleGrantRewrite}
                   onOpenSqlModal={() => setIsSqlModalOpen(true)}
                   isEvaluating={isEvaluating}
                   onOpenEmailOutbox={() => {

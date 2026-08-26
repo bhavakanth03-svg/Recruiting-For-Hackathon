@@ -84,7 +84,11 @@ export interface CandidateSubmission {
   emailDispatched?: boolean;
   emailDispatchedAt?: string;
   tabSwitchDetected?: boolean;
+  tabSwitchCount?: number;
   submissionReason?: string;
+  allowRewrite?: boolean;
+  rewriteGrantedAt?: string;
+  rewriteGrantedBy?: string;
 }
 
 export interface LeaderboardEntry {

@@ -32,7 +32,8 @@ import {
   GitBranch,
   ExternalLink,
   Award,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import { CandidateDetails, CandidateAnswer, Question, CandidateSubmission } from '../types';
 import { DEFAULT_QUESTIONS, CANDIDATE_ACCESS_CODE, CREATOR_ACCESS_CODE } from '../data/defaultData';
@@ -88,10 +89,11 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     return null;
   });
   const [isCheckingProfile, setIsCheckingProfile] = useState(false);
+  const [isCheckingRewriteStatus, setIsCheckingRewriteStatus] = useState(false);
 
-  // Anti-Cheat Tab Switching State
-  const [isTabSwitched, setIsTabSwitched] = useState(false);
-  const isAutoSubmittingRef = useRef(false);
+  // Anti-Cheat Tab Switching Warning State (No Auto-Submit)
+  const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
+  const [showTabSwitchWarning, setShowTabSwitchWarning] = useState<boolean>(false);
 
   // Step state: 'gate' (requires access code) -> 'registration' -> 'testing' -> 'review'
   const [step, setStep] = useState<'gate' | 'registration' | 'testing' | 'review'>(() => {
@@ -381,20 +383,30 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     }
   }, [currentSubmission]);
 
-  // Anti-Cheat: Tab Switch Detection & Auto-Submit
+  // Anti-Cheat: Tab Switch Detection & Warning (NO AUTO-SUBMISSION)
   useEffect(() => {
     if (step !== 'testing' && step !== 'review') return;
 
     const handleVisibilityChange = () => {
       if (document.hidden || document.visibilityState === 'hidden') {
-        if (!isAutoSubmittingRef.current) {
-          isAutoSubmittingRef.current = true;
-          setIsTabSwitched(true);
-          const formattedAnswers = Object.values(answers);
+        setTabSwitchCount((prev) => {
+          const nextCount = prev + 1;
+          // Send progress update with warning count logged for evaluator
+          const formattedAnswers = Object.values(answers) as CandidateAnswer[];
           const timeSpent = TOTAL_TIME_SECONDS - timeRemaining;
-          // Trigger immediate auto-submission with tabSwitchDetected = true
-          onSubmitAssessment(details, formattedAnswers, timeSpent, candidateId, true);
-        }
+          syncCandidateProgress({
+            id: candidateId,
+            candidateCode: 'CANDIDATE-2025',
+            details,
+            status: 'in_progress',
+            answers: formattedAnswers,
+            timeSpentSeconds: timeSpent,
+            tabSwitchDetected: true,
+            tabSwitchCount: nextCount
+          });
+          return nextCount;
+        });
+        setShowTabSwitchWarning(true);
       }
     };
 
@@ -402,7 +414,55 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [step, answers, details, timeRemaining, candidateId, onSubmitAssessment]);
+  }, [step, answers, details, timeRemaining, candidateId]);
+
+  const handleStartRewrite = () => {
+    setAnswers({});
+    try {
+      localStorage.removeItem('evalpulse_candidate_answers');
+      localStorage.removeItem('evalpulse_candidate_submission');
+    } catch {}
+    setTimeRemaining(TOTAL_TIME_SECONDS);
+    setLockedCandidateProfile(null);
+    setCurrentQuestionIndex(0);
+    setStep('testing');
+    setTabSwitchCount(0);
+    setShowTabSwitchWarning(false);
+
+    syncCandidateProgress({
+      id: candidateId,
+      candidateCode: 'CANDIDATE-2025',
+      details,
+      status: 'in_progress',
+      answers: [],
+      timeSpentSeconds: 0,
+      startedAt: new Date().toISOString(),
+      tabSwitchDetected: false,
+      tabSwitchCount: 0,
+      allowRewrite: true
+    });
+  };
+
+  const handleCheckRewriteStatus = async () => {
+    setIsCheckingRewriteStatus(true);
+    try {
+      const res = await checkCandidateProfile({
+        email: details.email || lockedCandidateProfile?.details?.email,
+        phone: details.phone || lockedCandidateProfile?.details?.phone,
+        candidateId: lockedCandidateProfile?.id || candidateId
+      });
+
+      if (res.allowRewrite || (res.existingCandidate && res.existingCandidate.allowRewrite)) {
+        if (res.existingCandidate) {
+          setLockedCandidateProfile(res.existingCandidate);
+        }
+      }
+    } catch (err) {
+      console.warn('Check rewrite error:', err);
+    } finally {
+      setIsCheckingRewriteStatus(false);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -442,9 +502,13 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       });
 
       if (localMatch) {
-        setLockedCandidateProfile(localMatch);
-        setIsCheckingProfile(false);
-        return;
+        if (localMatch.allowRewrite) {
+          setLockedCandidateProfile(null);
+        } else {
+          setLockedCandidateProfile(localMatch);
+          setIsCheckingProfile(false);
+          return;
+        }
       }
 
       // 2. Query backend API for profile duplication verification
@@ -454,7 +518,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         candidateId
       });
 
-      if (checkRes.alreadySubmitted && checkRes.existingCandidate) {
+      if (checkRes.alreadySubmitted && checkRes.existingCandidate && !checkRes.allowRewrite) {
         setLockedCandidateProfile(checkRes.existingCandidate);
         setIsCheckingProfile(false);
         return;
@@ -641,10 +705,42 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
                   : 'Submitted & In Evaluator Review'}
               </span>
             </div>
-            {lockedCandidateProfile.tabSwitchDetected && (
-              <div className="flex items-center gap-1.5 text-rose-400 text-[11px] font-cyber-mono bg-rose-950/40 p-2 rounded-xl border border-rose-800/60 mt-1">
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span>Note: This previous attempt was auto-submitted due to tab switch violation.</span>
+            {lockedCandidateProfile.allowRewrite ? (
+              <div className="p-4 rounded-2xl bg-cyan-950/90 border-2 border-cyan-400 text-cyan-200 text-left space-y-3 relative z-10 shadow-xl cyber-glow-cyan animate-pulse">
+                <div className="flex items-center gap-2 text-cyan-300 font-orbitron font-bold text-sm">
+                  <RotateCcw className="w-5 h-5 text-cyan-400" />
+                  <span>✨ Rewrite Feature by Creator: Authorization Granted!</span>
+                </div>
+                <p className="text-xs text-cyan-100/90 font-rajdhani leading-relaxed">
+                  The assessment creator has authorized you to rewrite your assessment. You can now start a fresh 60-minute attempt.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleStartRewrite}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg transition-all hover:scale-[1.01]"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-950" />
+                  <span>Start Rewrite Assessment Now</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 text-left space-y-2 relative z-10 text-xs font-rajdhani">
+                <div className="flex items-center justify-between text-slate-300 font-semibold">
+                  <span>Rewrite Status:</span>
+                  <span className="text-amber-400 font-mono">Requires Creator Authorization</span>
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  If you were previously auto-submitted or need a retake, please contact the assessment creator to enable the <strong>"Rewrite Feature by Creator"</strong>.
+                </p>
+                <button
+                  type="button"
+                  disabled={isCheckingRewriteStatus}
+                  onClick={handleCheckRewriteStatus}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-cyber-mono text-[11px] font-semibold transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingRewriteStatus ? 'animate-spin' : ''}`} />
+                  <span>{isCheckingRewriteStatus ? 'Checking Creator Status...' : 'Check Rewrite Authorization'}</span>
+                </button>
               </div>
             )}
           </div>
@@ -943,8 +1039,8 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
                 <Keyboard className="w-4 h-4 text-cyan-400" />
                 <span>Test Instructions & Anti-Cheat Regulations:</span>
               </span>
-              <p>• <strong>Anti-Cheat Proctoring</strong>: Switching tabs or minimizing the browser window will <strong>IMMEDIATELY auto-submit</strong> your examination and lock further attempts.</p>
-              <p>• <strong>Single Attempt Only</strong>: Once submitted, candidates cannot write the test again from the same profile (email/phone).</p>
+              <p>• <strong>Anti-Cheat Proctoring</strong>: Leaving the test screen or switching tabs is monitored. Violations trigger warnings and are recorded in your evaluation proctoring log.</p>
+              <p>• <strong>Single Attempt & Rewrite Feature</strong>: Completed profiles are locked to prevent duplicate attempts. To retake or rewrite, authorization must be granted by the assessment creator via the Rewrite Feature.</p>
               <p>• <strong>Questions 1-24</strong>: Code-based MCQs from 11th C++ & 12th Python/SQL. Choose options by clicking OR pressing <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">A</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">B</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">C</code>, <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">D</code> or <code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">1</code>-<code className="bg-slate-800 text-cyan-300 px-1 py-0.5 rounded font-mono">4</code>.</p>
               <p>• <strong>Question 25</strong>: Website prompt challenge with real-time sandbox preview.</p>
             </div>
@@ -974,16 +1070,16 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       {step === 'testing' && (
         <div className="space-y-6">
           {/* ANTI-CHEAT LIVE PROCTORING ALERT BANNER */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs font-rajdhani">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-rajdhani">
             <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0 animate-pulse" />
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <span>
-                <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px]">Anti-Cheat Active:</strong> Switching browser tabs or minimizing this window will <strong>IMMEDIATELY auto-submit</strong> your examination.
+                <strong className="font-semibold text-amber-400 font-cyber-mono uppercase text-[11px]">Anti-Cheat Active:</strong> Switching browser tabs or minimizing this window triggers proctoring warnings and logs violation events for the evaluator.
               </span>
             </div>
-            <div className="inline-flex items-center gap-1.5 font-cyber-mono font-bold text-[10px] px-2.5 py-1 rounded-lg bg-rose-950/70 border border-rose-500/50 text-rose-300 shrink-0">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-              <span>PROCTORING LIVE</span>
+            <div className="inline-flex items-center gap-1.5 font-cyber-mono font-bold text-[10px] px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-500/50 text-amber-300 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              <span>PROCTORING ACTIVE {tabSwitchCount > 0 ? `• ${tabSwitchCount} WARNING${tabSwitchCount > 1 ? 'S' : ''}` : ''}</span>
             </div>
           </div>
 
@@ -1490,36 +1586,44 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         </motion.div>
       )}
 
-      {/* TAB SWITCH DETECTED SECURITY OVERLAY */}
+      {/* TAB SWITCH WARNING MODAL (WARNING ONLY - NO AUTO-SUBMIT) */}
       <AnimatePresence>
-        {isTabSwitched && (
+        {showTabSwitchWarning && (
           <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="max-w-md w-full bg-slate-900 border-2 border-rose-500 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl cyber-glow-rose"
+              className="max-w-md w-full bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-2xl cyber-glow-amber relative z-50"
             >
-              <div className="w-16 h-16 rounded-3xl bg-rose-500/20 border border-rose-500 flex items-center justify-center text-rose-400 mx-auto shadow-inner animate-bounce">
-                <ShieldAlert className="w-8 h-8 text-rose-400" />
+              <div className="w-16 h-16 rounded-3xl bg-amber-500/20 border border-amber-500 flex items-center justify-center text-amber-400 mx-auto shadow-inner animate-pulse">
+                <AlertTriangle className="w-8 h-8 text-amber-400" />
               </div>
 
               <div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950 border border-rose-500 text-rose-300 text-xs font-cyber-mono font-bold uppercase tracking-wider mb-2">
-                  SECURITY VIOLATION DETECTED
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950 border border-amber-500 text-amber-300 text-xs font-cyber-mono font-bold uppercase tracking-wider mb-2">
+                  PROCTORING WARNING #{tabSwitchCount}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black font-orbitron text-white">
-                  Test Auto-Submitted
+                  Tab Switch Detected
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 font-rajdhani mt-2 leading-relaxed">
-                  You switched tabs or navigated away from The Crucible assessment environment. As per examination integrity rules, your test has been automatically submitted and finalized.
+                  You navigated away or minimized The Crucible examination screen. Please remain focused on your test. This event has been recorded in your proctoring logs.
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-rose-900/60 text-xs text-rose-300/90 font-cyber-mono flex items-center justify-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-                <span>Submitting responses to evaluator...</span>
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-amber-900/60 text-xs text-amber-300/90 font-cyber-mono text-left space-y-1">
+                <p>• Avoid navigating outside this active assessment window.</p>
+                <p>• Proctoring Warnings Recorded: <strong className="text-white font-bold">{tabSwitchCount}</strong></p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowTabSwitchWarning(false)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                I Understand & Resume Test
+              </button>
             </motion.div>
           </div>
         )}

@@ -52,7 +52,7 @@ import {
   sendEmailViaGmail,
   getGmailAccessToken
 } from '../lib/gmail';
-import { fetchCandidateById } from '../lib/api';
+import { fetchCandidateById, grantCandidateRewrite } from '../lib/api';
 import { SUPABASE_URL, requestSupabaseSnapshot, sendSupabaseSnapshot } from '../lib/supabase';
 
 interface CreatorDashboardProps {
@@ -69,6 +69,7 @@ interface CreatorDashboardProps {
   onOpenSqlModal?: () => void;
   onOpenEmailOutbox?: () => void;
   onOpenGoogleWorkspace?: (tab?: 'drive' | 'contacts' | 'gmail') => void;
+  onGrantRewrite?: (candidate: CandidateSubmission) => Promise<void>;
 }
 
 export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
@@ -79,7 +80,8 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   onClearAllCandidates,
   onOpenSqlModal,
   onOpenEmailOutbox,
-  onOpenGoogleWorkspace
+  onOpenGoogleWorkspace,
+  onGrantRewrite
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'pending' | 'evaluated'>('all');
@@ -87,6 +89,29 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isGrantingRewrite, setIsGrantingRewrite] = useState(false);
+
+  const handleTriggerGrantRewrite = async (candidate: CandidateSubmission) => {
+    setIsGrantingRewrite(true);
+    try {
+      if (onGrantRewrite) {
+        await onGrantRewrite(candidate);
+      } else {
+        const res = await grantCandidateRewrite({
+          candidateId: candidate.id,
+          email: candidate.details.email,
+          phone: candidate.details.phone,
+          grantedBy: 'Assessment Creator'
+        });
+        if (res.success && res.candidate) {
+          onRefresh();
+          setSelectedCandidate(res.candidate);
+        }
+      }
+    } finally {
+      setIsGrantingRewrite(false);
+    }
+  };
 
   // Response viewing tabs inside modal
   const [activePreviewCandidateTab, setActivePreviewCandidateTab] = useState<'mcqs' | 'website'>('mcqs');
@@ -622,10 +647,16 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                             <span>Score Emailed</span>
                           </span>
                         )}
+                        {cand.allowRewrite && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800 flex items-center gap-1">
+                            <RotateCcw className="w-3 h-3 text-cyan-500" />
+                            <span>Rewrite Feature Active</span>
+                          </span>
+                        )}
                         {cand.tabSwitchDetected && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3 text-rose-500" />
-                            <span>Tab Switch Auto-Submit</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-500" />
+                            <span>Tab Switch Warning ({cand.tabSwitchCount || 1}x)</span>
                           </span>
                         )}
                       </div>
@@ -675,7 +706,18 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
+                    {!cand.allowRewrite && (
+                      <button
+                        onClick={() => handleTriggerGrantRewrite(cand)}
+                        disabled={isGrantingRewrite}
+                        title="Allow this candidate to retake or rewrite their assessment"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-all"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Allow Rewrite</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => handleOpenEvaluationModal(cand)}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all hover:scale-105"
@@ -737,7 +779,24 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                 </div>
 
                 {/* Candidate Switcher Dropdown & Controls */}
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  {selectedCandidate.allowRewrite ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-cyan-500/10 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-600 dark:text-cyan-300 text-xs font-semibold">
+                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Rewrite Feature Active</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleTriggerGrantRewrite(selectedCandidate)}
+                      disabled={isGrantingRewrite}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                      title="Grant Rewrite Feature by Creator"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{isGrantingRewrite ? 'Granting Rewrite...' : 'Allow Rewrite (Feature by Creator)'}</span>
+                    </button>
+                  )}
+
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
                     <button
                       onClick={() => handleSwitchCandidate('prev')}
@@ -782,14 +841,14 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
               {/* Anti-Cheat Tab Switch Detection Banner */}
               {selectedCandidate.tabSwitchDetected && (
-                <div className="p-3.5 rounded-2xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 flex items-center gap-3 text-xs text-rose-700 dark:text-rose-300 font-rajdhani">
-                  <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 animate-pulse" />
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex items-center gap-3 text-xs text-amber-700 dark:text-amber-300 font-rajdhani">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
                   <div>
-                    <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px] block">
-                      Anti-Cheat Violation Flagged: Tab Switch Auto-Submit
+                    <strong className="font-semibold text-amber-400 font-cyber-mono uppercase text-[11px] block">
+                      Anti-Cheat Notification: Tab Switch Warning Issued ({selectedCandidate.tabSwitchCount || 1} Occurrence{selectedCandidate.tabSwitchCount && selectedCandidate.tabSwitchCount > 1 ? 's' : ''})
                     </strong>
                     <span>
-                      The candidate switched browser tabs or minimized their window during the live assessment. The system triggered an immediate auto-submission.
+                      The candidate navigated away or switched browser tabs during the examination. A warning was displayed on their screen, and the count was logged for your review.
                     </span>
                   </div>
                 </div>

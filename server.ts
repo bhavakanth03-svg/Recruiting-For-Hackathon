@@ -491,16 +491,73 @@ app.post('/api/candidates/check-profile', (req, res) => {
   });
 
   if (existing) {
+    if (existing.allowRewrite) {
+      return res.json({
+        alreadySubmitted: false,
+        allowRewrite: true,
+        existingCandidate: existing,
+        message: 'Rewrite feature granted by Creator! Candidate may proceed with rewrite.'
+      });
+    }
     return res.json({
       alreadySubmitted: true,
+      allowRewrite: false,
       existingCandidate: existing,
-      message: 'A completed assessment already exists for this candidate profile. Multiple attempts are disallowed.'
+      message: 'A completed assessment already exists for this candidate profile. Multiple attempts are disallowed unless Creator grants Rewrite permission.'
     });
   }
 
   return res.json({
     alreadySubmitted: false,
+    allowRewrite: false,
     existingCandidate: null
+  });
+});
+
+// 5.6 Creator Grant Rewrite Permission to a Candidate
+app.post('/api/candidates/grant-rewrite', (req, res) => {
+  const { candidateId, email, phone, grantedBy } = req.body || {};
+  const normEmail = (email || '').trim().toLowerCase();
+  const normPhone = (phone || '').replace(/\D/g, '');
+
+  const index = candidates.findIndex((c) => {
+    if (candidateId && c.id === candidateId) return true;
+    if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+    if (normPhone && c.details.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
+    return false;
+  });
+
+  if (index >= 0) {
+    candidates[index] = {
+      ...candidates[index],
+      status: 'in_progress',
+      allowRewrite: true,
+      rewriteGrantedAt: new Date().toISOString(),
+      rewriteGrantedBy: grantedBy || 'Assessment Creator',
+      tabSwitchDetected: false,
+      tabSwitchCount: 0,
+      answers: [],
+      evaluation: undefined,
+      submittedAt: undefined,
+      submissionReason: 'Rewrite permitted by Creator'
+    };
+
+    broadcastEvent('CANDIDATE_PROGRESS_UPDATED', {
+      candidate: candidates[index],
+      candidateId: candidates[index].id,
+      timestamp: new Date().toISOString()
+    });
+
+    return res.json({
+      success: true,
+      candidate: candidates[index],
+      message: 'Rewrite permission granted by Creator successfully.'
+    });
+  }
+
+  return res.status(404).json({
+    success: false,
+    message: 'Candidate profile not found.'
   });
 });
 

@@ -212,7 +212,7 @@ export async function syncCandidateProgress(progress: Partial<CandidateSubmissio
   return { success: true, message: 'Local progress saved' };
 }
 
-export async function checkCandidateProfile(params: { email?: string; phone?: string; candidateId?: string }): Promise<{ alreadySubmitted: boolean; existingCandidate?: CandidateSubmission | null; message?: string }> {
+export async function checkCandidateProfile(params: { email?: string; phone?: string; candidateId?: string }): Promise<{ alreadySubmitted: boolean; allowRewrite?: boolean; existingCandidate?: CandidateSubmission | null; message?: string }> {
   try {
     const res = await fetch(`${API_BASE}/candidates/check-profile`, {
       method: 'POST',
@@ -247,13 +247,67 @@ export async function checkCandidateProfile(params: { email?: string; phone?: st
           return false;
         });
         if (match) {
-          return { alreadySubmitted: true, existingCandidate: match, message: 'This candidate profile has already completed the assessment.' };
+          if (match.allowRewrite) {
+            return { alreadySubmitted: false, allowRewrite: true, existingCandidate: match, message: 'Rewrite feature granted by Creator! Candidate may proceed with rewrite.' };
+          }
+          return { alreadySubmitted: true, allowRewrite: false, existingCandidate: match, message: 'This candidate profile has already completed the assessment.' };
         }
       }
     }
   } catch {}
 
-  return { alreadySubmitted: false, existingCandidate: null };
+  return { alreadySubmitted: false, allowRewrite: false, existingCandidate: null };
+}
+
+export async function grantCandidateRewrite(params: { candidateId?: string; email?: string; phone?: string; grantedBy?: string }): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/candidates/grant-rewrite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Grant rewrite API error:', err);
+  }
+
+  // Local fallback
+  try {
+    const raw = localStorage.getItem('evalpulse_all_candidates');
+    if (raw) {
+      const list: CandidateSubmission[] = JSON.parse(raw);
+      const normEmail = (params.email || '').trim().toLowerCase();
+      const normPhone = (params.phone || '').replace(/\D/g, '');
+      const idx = list.findIndex((c) => {
+        if (params.candidateId && c.id === params.candidateId) return true;
+        if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail) return true;
+        if (normPhone && c.details.phone && c.details.phone.replace(/\D/g, '') === normPhone) return true;
+        return false;
+      });
+      if (idx >= 0) {
+        list[idx] = {
+          ...list[idx],
+          status: 'in_progress',
+          allowRewrite: true,
+          rewriteGrantedAt: new Date().toISOString(),
+          rewriteGrantedBy: params.grantedBy || 'Assessment Creator',
+          tabSwitchDetected: false,
+          tabSwitchCount: 0,
+          answers: [],
+          evaluation: undefined,
+          submittedAt: undefined,
+          submissionReason: 'Rewrite permitted by Creator'
+        };
+        localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+        return { success: true, candidate: list[idx], message: 'Rewrite permission granted by Creator (saved locally).' };
+      }
+    }
+  } catch {}
+
+  return { success: false, message: 'Could not grant rewrite permission for candidate.' };
 }
 
 export async function submitAssessment(submission: Partial<CandidateSubmission>): Promise<{ success: boolean; candidate?: CandidateSubmission; message?: string }> {

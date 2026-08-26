@@ -23,7 +23,8 @@ import {
   Flame,
   User,
   Phone,
-  ShieldAlert
+  ShieldAlert,
+  RotateCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission } from '../types';
@@ -32,12 +33,14 @@ interface CandidateHomeProps {
   submission: CandidateSubmission;
   onNavigateToLeaderboard: () => void;
   onOpenEmailOutbox: () => void;
+  onRetakeAssessment?: () => void;
 }
 
 export const CandidateHome: React.FC<CandidateHomeProps> = ({
   submission,
   onNavigateToLeaderboard,
-  onOpenEmailOutbox
+  onOpenEmailOutbox,
+  onRetakeAssessment
 }) => {
   const isEvaluated = submission.status === 'evaluated' && !!submission.evaluation;
 
@@ -115,13 +118,42 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({
         </div>
       </motion.div>
 
+      {/* REWRITE FEATURE BY CREATOR BANNER */}
+      {submission.allowRewrite && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-cyan-950 via-slate-900 to-teal-950 border-2 border-cyan-400 text-white shadow-2xl cyber-glow-cyan flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-cyan-300 font-orbitron font-bold text-sm">
+              <RotateCcw className="w-5 h-5 text-cyan-400 animate-spin" style={{ animationDuration: '4s' }} />
+              <span>✨ Rewrite Feature by Creator: Retake Authorized!</span>
+            </div>
+            <p className="text-xs text-cyan-100/90 font-rajdhani">
+              The assessment creator has authorized a fresh examination rewrite for your profile. You can start a new 60-minute test session now.
+            </p>
+          </div>
+          {onRetakeAssessment && (
+            <button
+              type="button"
+              onClick={onRetakeAssessment}
+              className="shrink-0 flex items-center gap-2 py-3 px-5 rounded-2xl bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-300 hover:to-teal-300 text-slate-950 font-orbitron font-bold text-xs uppercase tracking-wider shadow-lg transition-all hover:scale-105"
+            >
+              <RotateCcw className="w-4 h-4 text-slate-950" />
+              <span>Rewrite Assessment Now</span>
+            </button>
+          )}
+        </motion.div>
+      )}
+
       {/* PROCTORING TAB SWITCH NOTIFICATION BANNER IF APPLICABLE */}
-      {submission.tabSwitchDetected && (
+      {submission.tabSwitchDetected && !submission.allowRewrite && (
         <div className="p-4 rounded-3xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 flex items-center gap-3 text-xs text-rose-700 dark:text-rose-300 font-rajdhani">
           <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 animate-pulse" />
           <div>
-            <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px] block">Proctoring Security Alert: Tab Switch Finalization</strong>
-            <span>This examination attempt was automatically submitted and locked because a tab switch or browser blur violation was detected during the active test session.</span>
+            <strong className="font-semibold text-rose-400 font-cyber-mono uppercase text-[11px] block">Proctoring Telemetry Alert: Tab Switch Warnings</strong>
+            <span>Tab switch warnings were recorded during your examination. If you need to retake the test, please ask the Creator to activate the <strong>"Rewrite Feature by Creator"</strong>.</span>
           </div>
         </div>
       )}
