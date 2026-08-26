@@ -89,6 +89,8 @@ export interface CandidateSubmission {
   allowRewrite?: boolean;
   rewriteGrantedAt?: string;
   rewriteGrantedBy?: string;
+  currentQuestionIndex?: number;
+  lastActiveAt?: string;
 }
 
 export interface LeaderboardEntry {

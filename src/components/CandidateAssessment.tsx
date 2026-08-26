@@ -612,13 +612,15 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         details,
         status: 'in_progress',
         answers: Object.values(answers) as CandidateAnswer[],
-        timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining
+        timeSpentSeconds: TOTAL_TIME_SECONDS - timeRemaining,
+        currentQuestionIndex,
+        lastActiveAt: new Date().toISOString()
       };
       syncCandidateProgress(payload);
       broadcastCandidateProgressViaSupabase(payload);
-    }, 1200);
+    }, 800);
     return () => clearTimeout(timer);
-  }, [answers, details, step, candidateId, timeRemaining]);
+  }, [answers, details, step, candidateId, timeRemaining, currentQuestionIndex]);
 
   const currentQuestion = DEFAULT_QUESTIONS[currentQuestionIndex];
 

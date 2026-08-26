@@ -571,59 +571,84 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         </div>
       </div>
 
-      {/* 2.6 COHORT CAPACITY (100 PARTICIPANTS SUPPORTED) & SCALE CONTROLS */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
+      {/* 2.6 CANDIDATE ASSESSMENT LINK & REAL-TIME CAPACITY (100 PARTICIPANTS SUPPORTED) */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 text-white border border-cyan-500/30 shadow-xl space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5 max-w-2xl">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-cyan-400 font-cyber-mono">
-                Cohort Scale & Capacity
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 font-cyber-mono">
+                Live Assessment Invitation & Tracking
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                 100 Candidates Supported
               </span>
-              {candidates.length >= 100 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                  Full 100 Cohort Active
-                </span>
-              )}
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                Real Attendees Only
+              </span>
             </div>
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Active Cohort: <span className="text-indigo-600 dark:text-cyan-400 font-mono font-bold">{candidates.length}</span> / 100 Enrolled Candidate Records
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl font-rajdhani">
-              The Crucible easily scales up to 100+ concurrent candidate assessments with real-time response isolation, individual rewrite permissions, and state board merit ranking.
+            <h3 className="text-base font-bold text-white">
+              Share Assessment Link with Tamil Nadu Candidates
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Candidates who open your link and enter the candidate token will appear below with real-time response synchronization, live question tracking, anti-cheat detection, and instant evaluation.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button
-              onClick={() => handleSeedCohort(100)}
-              disabled={isSeedingCohort}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white shadow-md shadow-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer"
-              title="Populate test cohort with up to 100 candidates with realistic scores and Tamil Nadu school profiles"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isSeedingCohort ? 'animate-spin' : ''}`} />
-              <span>{isSeedingCohort ? 'Populating Cohort...' : 'Populate 100 Candidates'}</span>
-            </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {/* Direct Link Copy */}
+            <div className="flex items-center gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <input
+                type="text"
+                readOnly
+                value={typeof window !== 'undefined' ? window.location.origin : ''}
+                className="bg-transparent px-3 py-1 text-xs text-cyan-300 font-mono focus:outline-none w-48 sm:w-60 truncate"
+              />
+              <button
+                onClick={() => handleCopyText(typeof window !== 'undefined' ? window.location.origin : '', 'Assessment Link')}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedNotification === 'Assessment Link' ? 'Copied Link!' : 'Copy Link'}</span>
+              </button>
+            </div>
 
-            <button
-              onClick={handleRestoreAttended}
-              disabled={isSeedingCohort}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-50 transition-all cursor-pointer"
-              title="Reset candidate list back to the core 13 attended candidates"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-              <span>Restore Attended (13)</span>
-            </button>
+            {/* Access Code Copy */}
+            <div className="flex items-center gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 pl-2 font-medium">Access Code:</span>
+              <span className="text-xs text-amber-300 font-mono font-bold px-1">#B3L2H100%</span>
+              <button
+                onClick={() => handleCopyText('#B3L2H100%', 'Access Code')}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedNotification === 'Access Code' ? 'Copied Code!' : 'Copy Code'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Capacity status bar */}
+        <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-300">Live Attended Candidates:</span>
+            <span className="font-mono font-bold text-cyan-400 text-sm">{candidates.length}</span>
+            <span>/ 100 Capacity</span>
+          </div>
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="flex items-center gap-1 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Live 2-Way Sync Active
+            </span>
+            <span>•</span>
+            <span className="text-slate-300">Single attempt locked per student (Rewrite available on demand)</span>
           </div>
         </div>
 
         {/* Visual Progress Bar to 100 */}
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
           <div
             className="h-full bg-gradient-to-r from-indigo-500 via-cyan-500 to-emerald-400 transition-all duration-500 rounded-full"
-            style={{ width: `${Math.min(100, Math.max(8, (candidates.length / 100) * 100))}%` }}
+            style={{ width: `${Math.min(100, Math.max(candidates.length > 0 ? 5 : 0, (candidates.length / 100) * 100))}%` }}
           />
         </div>
 
@@ -631,7 +656,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 font-medium"
+            className="p-2.5 rounded-2xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 font-medium"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
             <span>{cohortSuccessMessage}</span>
@@ -804,6 +829,16 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
 
                       {/* Response summary pill */}
                       <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
+                        {isInProgress && cand.currentQuestionIndex !== undefined && (
+                          <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                            <span>
+                              {cand.currentQuestionIndex === 24
+                                ? '🌐 Active on Q25 Web Building'
+                                : `⚡ Solving Q${cand.currentQuestionIndex + 1}/25 (${DEFAULT_QUESTIONS[cand.currentQuestionIndex]?.topic || 'CS'})`}
+                            </span>
+                          </span>
+                        )}
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
                           📝 MCQs: {mcqAnsweredCount}/24 Answered
                         </span>
@@ -814,7 +849,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
                         }`}>
                           🌐 Q25 Website: {hasQ25 ? 'Provided' : 'Pending'}
                         </span>
-                        {cand.timeSpentSeconds && (
+                        {cand.timeSpentSeconds !== undefined && (
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                             ⏱️ Duration: {Math.floor(cand.timeSpentSeconds / 60)}m {cand.timeSpentSeconds % 60}s
                           </span>
