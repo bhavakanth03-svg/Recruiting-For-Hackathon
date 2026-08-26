@@ -11,9 +11,11 @@ import {
   saveCandidateToSupabase,
   saveCandidateBatchToSupabase,
   deleteAllCandidatesFromSupabase,
-  broadcastCandidateListResetViaSupabase
+  broadcastCandidateListResetViaSupabase,
+  broadcastCandidateSubmissionViaSupabase,
+  broadcastCandidateEvaluationViaSupabase
 } from './supabase';
-import { mergeCandidateLists } from './candidateSync';
+import { mergeCandidateLists, mergeSingleCandidate } from './candidateSync';
 
 const API_BASE = '/api';
 
@@ -81,23 +83,21 @@ export async function verifyAccessCode(accessCode: string) {
 }
 
 export async function fetchCandidates(token?: string): Promise<CandidateSubmission[]> {
-  // 1. Supabase Cloud DB is the absolute Single Source of Truth
+  let supabaseList: CandidateSubmission[] = [];
+  let serverList: CandidateSubmission[] = [];
+  let cachedList: CandidateSubmission[] = [];
+
+  // 1. Supabase Cloud DB query
   try {
-    const supabaseCandidates = await fetchCandidatesFromSupabase();
-    if (Array.isArray(supabaseCandidates)) {
-      // Sync fresh Supabase DB snapshot to local storage cache
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(supabaseCandidates));
-        } catch {}
-      }
-      return supabaseCandidates;
+    const fromSb = await fetchCandidatesFromSupabase();
+    if (Array.isArray(fromSb) && fromSb.length > 0) {
+      supabaseList = fromSb;
     }
   } catch (e) {
     console.warn('Supabase DB fetch note:', e);
   }
 
-  // 2. Fallback to Express backend if Supabase DB is temporarily unreachable
+  // 2. Express backend query
   try {
     const headers: Record<string, string> = {};
     let activeToken = token;
@@ -113,29 +113,37 @@ export async function fetchCandidates(token?: string): Promise<CandidateSubmissi
     });
     if (res.ok) {
       const data = await res.json();
-      if (data && Array.isArray(data.candidates)) {
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('evalpulse_all_candidates', JSON.stringify(data.candidates));
-          } catch {}
-        }
-        return data.candidates;
+      if (data && Array.isArray(data.candidates) && data.candidates.length > 0) {
+        serverList = data.candidates;
       }
     }
   } catch (err) {
     // Network or static host
   }
 
-  // 3. Fallback to cached local storage only in true offline scenarios
+  // 3. Local Storage cache query
   try {
     const stored = localStorage.getItem('evalpulse_all_candidates');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cachedList = parsed;
       }
     }
   } catch {}
+
+  // 4. Merge all sources using the canonical candidate merger
+  let merged = mergeCandidateLists(supabaseList, serverList);
+  merged = mergeCandidateLists(merged, cachedList);
+
+  if (merged.length > 0) {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
+      } catch {}
+    }
+    return merged;
+  }
 
   return INITIAL_CANDIDATE_SUBMISSIONS;
 }
@@ -228,6 +236,7 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
             localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
           } catch {}
           saveCandidateToSupabase(candidateObj);
+          broadcastCandidateSubmissionViaSupabase(candidateObj);
           return { success: true, candidate: candidateObj, message: data.message || 'Assessment submitted successfully' };
         }
       }
@@ -295,6 +304,7 @@ export async function submitAssessment(submission: Partial<CandidateSubmission>)
 
   // Persist to Supabase Database for instant cross-device synchronization
   saveCandidateToSupabase(finalCandidate);
+  broadcastCandidateSubmissionViaSupabase(finalCandidate);
 
   return {
     success: true,
@@ -318,6 +328,20 @@ export async function evaluateCandidate(
     if (res.ok) {
       const data = await res.json();
       if (data && data.success) {
+        if (data.candidate) {
+          saveCandidateToSupabase(data.candidate);
+          broadcastCandidateEvaluationViaSupabase(data.candidate);
+          try {
+            const existingRaw = localStorage.getItem('evalpulse_all_candidates');
+            let list: CandidateSubmission[] = existingRaw ? JSON.parse(existingRaw) : [];
+            if (Array.isArray(list)) {
+              const idx = list.findIndex((c) => c.id === data.candidate.id);
+              if (idx >= 0) list[idx] = data.candidate;
+              else list.unshift(data.candidate);
+              localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
+            }
+          } catch {}
+        }
         return data;
       }
     }
@@ -368,6 +392,7 @@ export async function evaluateCandidate(
         localStorage.setItem('evalpulse_all_candidates', JSON.stringify(list));
         // Persist evaluation to Supabase DB for instant multi-device reflection
         saveCandidateToSupabase(list[idx]);
+        broadcastCandidateEvaluationViaSupabase(list[idx]);
         return {
           success: true,
           candidate: list[idx],

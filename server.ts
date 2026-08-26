@@ -11,6 +11,7 @@ import {
   DEFAULT_QUESTIONS
 } from './src/data/defaultData.ts';
 import { CandidateSubmission, CandidateAnswer, EmailNotification, LeaderboardEntry, ServerEvent, EvaluationRubric } from './src/types.ts';
+import { mergeCandidateLists, mergeSingleCandidate } from './src/lib/candidateSync.ts';
 
 // Supabase Cloud Project Configuration for cross-device real-time sync
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bgiejmsrrajbqjltvmrd.supabase.co';
@@ -73,6 +74,91 @@ function saveCandidatesToDisk(items: CandidateSubmission[]) {
   }
 }
 
+// Helper to upsert a candidate directly to Supabase DB from the server
+async function saveCandidateToSupabaseOnServer(candidate: CandidateSubmission) {
+  if (!candidate || !candidate.id) return;
+  try {
+    const payload = {
+      id: candidate.id,
+      candidate_code: candidate.candidateCode || 'CANDIDATE-2025',
+      full_name: candidate.details?.fullName || 'Candidate',
+      email: candidate.details?.email || '',
+      phone: candidate.details?.phone || '',
+      role: candidate.details?.role || 'Full Stack Developer',
+      school_name: candidate.details?.schoolName || '',
+      standard: candidate.details?.standard || '',
+      github_profile: candidate.details?.githubProfile || '',
+      status: candidate.status || 'submitted',
+      score: candidate.evaluation?.totalScore ?? null,
+      grade: candidate.evaluation?.grade ?? null,
+      badge: candidate.evaluation?.badge ?? null,
+      evaluator_feedback: candidate.evaluation?.feedback ?? null,
+      evaluator_name: candidate.evaluation?.evaluatedBy ?? null,
+      evaluated_at: candidate.evaluation?.evaluatedAt ?? null,
+      is_published: candidate.evaluation?.isPublishedToLeaderboard ?? true,
+      time_spent_seconds: candidate.timeSpentSeconds ?? 0,
+      answers: candidate.answers || [],
+      evaluation: candidate.evaluation || null,
+      details: candidate.details || {},
+      raw_data: candidate,
+      updated_at: new Date().toISOString()
+    };
+
+    await supabase.from('candidates').upsert(payload, { onConflict: 'id' });
+  } catch (err) {
+    console.warn('[Supabase Server DB] Upsert notice:', err);
+  }
+}
+
+async function syncCandidatesFromSupabaseOnServer() {
+  try {
+    const { data, error } = await supabase.from('candidates').select('*');
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const parsed: CandidateSubmission[] = data.map((row: any) => {
+        if (row.raw_data && typeof row.raw_data === 'object' && row.raw_data.id) {
+          return row.raw_data as CandidateSubmission;
+        }
+        return {
+          id: row.id,
+          candidateCode: row.candidate_code || 'CANDIDATE-2025',
+          details: row.details || {
+            fullName: row.full_name || 'Candidate',
+            email: row.email || '',
+            phone: row.phone || '',
+            role: row.role || 'Full Stack Developer',
+            schoolName: row.school_name || '',
+            standard: row.standard || '12th Computer Science',
+            githubProfile: row.github_profile || ''
+          },
+          status: row.status || 'submitted',
+          answers: row.answers || [],
+          evaluation: row.evaluation || (row.score !== null ? {
+            mcqScore: row.score,
+            websitePromptDesign: 14,
+            websitePromptFunctionality: 13,
+            totalScore: row.score,
+            grade: row.grade || 'A',
+            badge: row.badge || 'State Board Certified',
+            feedback: row.evaluator_feedback || '',
+            evaluatedBy: row.evaluator_name || 'Technical Evaluator',
+            evaluatedAt: row.evaluated_at || new Date().toISOString(),
+            isPublishedToLeaderboard: row.is_published !== false
+          } : undefined),
+          timeSpentSeconds: row.time_spent_seconds || 0,
+          startedAt: row.created_at,
+          submittedAt: row.updated_at
+        };
+      });
+
+      candidates = mergeCandidateLists(candidates, parsed);
+      saveCandidatesToDisk(candidates);
+      console.log(`[Supabase Server DB] Synced ${candidates.length} total candidates`);
+    }
+  } catch (err) {
+    console.warn('[Supabase Server DB] Query notice on boot:', err);
+  }
+}
+
 // Load in-memory candidates initialized from persistent storage
 let candidates: CandidateSubmission[] = loadSavedCandidates();
 let emailNotifications: EmailNotification[] = [...INITIAL_EMAIL_NOTIFICATIONS];
@@ -129,31 +215,14 @@ function initServerSupabaseSync() {
   } catch (err) {
     console.warn('[Supabase Server Realtime] Failed to initialize:', err);
   }
+
+  // Initial cloud sync
+  syncCandidatesFromSupabaseOnServer();
 }
 
 function mergeCandidateFromCloud(incoming: CandidateSubmission) {
   if (!incoming || !incoming.id) return;
-  const existingIdx = candidates.findIndex((c) => 
-    c.id === incoming.id ||
-    (c.details?.email && incoming.details?.email && c.details.email.toLowerCase() === incoming.details.email.toLowerCase())
-  );
-
-  if (existingIdx >= 0) {
-    // Merge
-    candidates[existingIdx] = {
-      ...candidates[existingIdx],
-      ...incoming,
-      details: {
-        ...candidates[existingIdx].details,
-        ...(incoming.details || {})
-      },
-      answers: incoming.answers !== undefined ? incoming.answers : candidates[existingIdx].answers,
-      evaluation: incoming.evaluation || candidates[existingIdx].evaluation
-    };
-  } else {
-    candidates.unshift(incoming);
-  }
-
+  candidates = mergeSingleCandidate(candidates, incoming);
   saveCandidatesToDisk(candidates);
 
   // Broadcast to local SSE stream
@@ -377,8 +446,9 @@ app.post('/api/candidates/progress', (req, res) => {
     candidates.unshift(candidateObj);
   }
 
-  // Persist updated candidate list to disk
+  // Persist updated candidate list to disk and Supabase DB
   saveCandidatesToDisk(candidates);
+  saveCandidateToSupabaseOnServer(candidateObj);
 
   // Broadcast real-time candidate progress update event to all connected evaluators
   broadcastEvent('CANDIDATE_PROGRESS_UPDATED', {
@@ -485,8 +555,9 @@ app.post('/api/candidates/submit', (req, res) => {
     };
   }
 
-  // Persist updated candidate list to disk
+  // Persist updated candidate list to disk and Supabase DB
   saveCandidatesToDisk(candidates);
+  saveCandidateToSupabaseOnServer(finalCandidate);
 
   // Broadcast real-time candidate submission event to all connected evaluators
   broadcastEvent('CANDIDATE_SUBMITTED', {
@@ -559,8 +630,9 @@ app.post('/api/candidates/:id/evaluate', (req, res) => {
   candidate.emailDispatched = true;
   candidate.emailDispatchedAt = now;
 
-  // Persist updated candidate list to disk
+  // Persist updated candidate list to disk and Supabase DB
   saveCandidatesToDisk(candidates);
+  saveCandidateToSupabaseOnServer(candidate);
 
   // Generate automated email notification
   const emailNotification: EmailNotification = {
