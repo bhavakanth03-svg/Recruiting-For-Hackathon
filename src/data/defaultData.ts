@@ -25,13 +25,13 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      'a = 6, b = 9, c = 60',
       'a = 5, b = 10, c = 50',
-      'a = 6, b = 9, c = 54',
-      'a = 6, b = 10, c = 60'
+      'a = 6, b = 10, c = 60',
+      'a = 6, b = 9, c = 60',
+      'a = 6, b = 9, c = 54'
     ],
-    correctOptionIndex: 0,
-    explanation: '`++a` pre-increments `a` from 5 to 6 first. Then `6 * 10 = 60` is assigned to `c`. Finally, postfix `b--` decrements `b` from 10 to 9.',
+    correctOptionIndex: 2,
+    explanation: '`++a` pre-increments `a` from 5 to 6 first. Then `6 * 10 = 60` is assigned to `c`. Finally, postfix `b--` decrements `b` from 10 to 9. Output: a = 6, b = 9, c = 60.',
     hint: 'Remember: prefix ++ happens before multiplication, postfix -- happens after the evaluation of the expression.'
   },
   {
@@ -93,12 +93,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      '15 15',
-      '15 35',
       '5 15',
-      '5 35'
+      '15 35',
+      '5 35',
+      '15 15'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: '`x` is passed by reference (`int &x`), modifying `p` in-place to `5 + 10 = 15`. `y` is passed by value, so changes to `y` do not affect `q`. Output is `15 15`.',
     hint: 'The ampersand `&` indicates an alias/reference to the original caller variable.'
   },
@@ -130,7 +130,7 @@ int main() {
       '11 22'
     ],
     correctOptionIndex: 0,
-    explanation: '`calculate(5, 3)` uses `x=5, y=3, z=2` default -> `(5*3)-2 = 13`. `calculate(6)` uses `x=6, y=4, z=2` defaults -> `(6*4)-2 = 22`.',
+    explanation: '`calculate(5, 3)` uses `x=5, y=3, z=2` default -> `(5*3)-2 = 13`. `calculate(6)` uses `x=6, y=4, z=2` defaults -> `(6*4)-2 = 22`. Output: 13 22.',
     hint: 'Missing trailing arguments are filled in from right to left using the default values.'
   },
   {
@@ -158,12 +158,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Trace Sum = 6',
       'Trace Sum = 7',
       'Trace Sum = 9',
+      'Trace Sum = 6',
       'Trace Sum = 1'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 2,
     explanation: 'The matching indices are `(0,0)` which has value 1, and `(1,1)` which has value 5. Therefore `sum = 1 + 5 = 6`.',
     hint: 'Check matrix[0][0] and matrix[1][1].'
   },
@@ -194,12 +194,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      'private (101 is printed correctly via public accessor)',
       'public (rollNo is directly accessible globally)',
+      'private (101 is printed correctly via public accessor)',
       'protected (only derived classes can access)',
       'Compile error because rollNo cannot be accessed inside member function'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: 'In C++, members of a class are `private` by default. Member functions within the class (`setRoll` and `getRoll`) can freely access `rollNo`, so 101 is printed.',
     hint: 'By default, C++ class members are private, while struct members are public.'
   },
@@ -232,12 +232,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      'C1C2D2C3D3D1',
       'C1C2C3D3D2D1',
       'C1C2D2C3D1D3',
-      'C1D1C2D2C3D3'
+      'C1D1C2D2C3D3',
+      'C1C2D2C3D3D1'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: '1. `t1(1)` constructs -> `C1`. 2. Inner block `t2(2)` constructs -> `C2`. 3. Inner block ends, `t2` destructs -> `D2`. 4. `t3(3)` constructs -> `C3`. 5. `main` exits, destroying `t3` -> `D3`, then `t1` -> `D1` (reverse order of creation). Output: `C1C2D2C3D3D1`.',
     hint: 'Destructors are called in reverse order of construction (LIFO) when their enclosing scope ends.'
   },
@@ -313,12 +313,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Count: 15',
       'Count: 11',
       'Count: 10',
+      'Count: 15',
       'Compilation Error: Cannot overload ++'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 2,
     explanation: 'The overloaded `operator++()` increments the internal `count` by 5. Starting at 10, `10 + 5 = 15`.',
     hint: 'Look at what the operator++ function body does (`count += 5`).'
   },
@@ -343,12 +343,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      '30 40',
       '20 30',
+      '30 40',
       '30 50',
       '40 50'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: '`arr` points to element at index 0 (10). `ptr += 2` shifts the pointer to index 2 (30). `*ptr` is 30, and `*(ptr + 1)` is index 3 (40).',
     hint: 'Pointer addition moves through array elements in steps of the data type size.'
   },
@@ -374,12 +374,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      '9 TamilNadu',
       '10 TamilNadu',
       '20 TamilNadu',
-      '5 Tamil'
+      '5 Tamil',
+      '9 TamilNadu'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: '`strcat` appends "Nadu" to "Tamil", resulting in "TamilNadu". `strlen("TamilNadu")` is 5 + 4 = 9 characters (excluding null terminator `\\0`).',
     hint: 'strlen counts the number of characters before the null terminator.'
   },
@@ -406,12 +406,12 @@ int main() {
     type: 'multiple_choice',
     points: 3,
     options: [
-      '13',
       '12',
+      '13',
       '15',
       '6'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: '`fun(6) = 6 + fun(4) = 6 + (4 + fun(2)) = 6 + 4 + (2 + fun(0)) = 6 + 4 + 2 + 1 = 13` (since `fun(0)` hits base case `n <= 1` returning 1).',
     hint: 'Trace the stack: fun(6) -> 6 + fun(4) -> 4 + fun(2) -> 2 + fun(0).'
   },
@@ -432,12 +432,12 @@ print("Total =", total)`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Total = 22',
       'Total = 19',
       'Total = 25',
+      'Total = 22',
       'Total = 15'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 2,
     explanation: 'The loop produces values 10, 7, 4, 1 (since stop is 0, non-inclusive). `10 + 7 + 4 + 1 = 22`.',
     hint: 'Start at 10, subtract 3 each step until > 0: 10, 7, 4, 1.'
   },
@@ -479,12 +479,12 @@ print(evens_squared)`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      '[4, 16, 36]',
       '[1, 9, 25]',
       '[2, 4, 6]',
-      '[4, 8, 12]'
+      '[4, 8, 12]',
+      '[4, 16, 36]'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: 'Even numbers in `nums` are 2, 4, 6. Squaring them yields `2**2=4, 4**2=16, 6**2=36` -> `[4, 16, 36]`.',
     hint: 'Only even numbers (2, 4, 6) satisfy x % 2 == 0.'
   },
@@ -503,12 +503,12 @@ print(sorted(list(sym_diff)))`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      '[1, 2, 5, 6]',
       '[3, 4]',
+      '[1, 2, 5, 6]',
       '[1, 2, 3, 4, 5, 6]',
       '[1, 2]'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: 'Symmetric difference (`^`) returns elements in either set_a or set_b, but NOT in both (i.e. `(A ∪ B) - (A ∩ B)`). Common elements 3, 4 are excluded, leaving `{1, 2, 5, 6}`.',
     hint: 'Symmetric difference means elements in either set, but not in both.'
   },
@@ -527,12 +527,12 @@ print(val1 + val2)`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      '183',
       '198',
       '180',
+      '183',
       'KeyError: Chemistry not found'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 2,
     explanation: '"Chemistry" does not exist in `marks`, so `.get("Chemistry", 85)` returns the default 85. "CS" exists with value 98, so `.get("CS", 100)` returns 98. `85 + 98 = 183`.',
     hint: 'dict.get(key, default) returns the key value if found, else default without raising KeyError.'
   },
@@ -590,12 +590,12 @@ print("Final Count =", count)`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Final Count = 15',
       'Final Count = 50',
       'Final Count = 10',
-      'Final Count = 65'
+      'Final Count = 65',
+      'Final Count = 15'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: '`increment()` uses `global count` to update the global count to 15. `local_test()` assigns to a local variable `count = 50` which does not affect the global count.',
     hint: 'The global keyword binds the assignment to the module-level variable.'
   },
@@ -622,12 +622,12 @@ print("Average =", total / len(rows))`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Average = 92.5',
       'Average = 93.0',
+      'Average = 92.5',
       'Average = 92.0',
       'TypeError: cannot convert str to int'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: '`(96 + 89) = 185`. `185 / 2 = 92.5`.',
     hint: 'Remember that CSV reader values are read as strings and must be cast with int().'
   },
@@ -647,12 +647,12 @@ HAVING COUNT(*) >= 2;`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Groups of departments that have 2 or more students',
       'Individual student rows before grouping',
       'Only departments whose average mark is greater than 2',
+      'Groups of departments that have 2 or more students',
       'Syntax error: HAVING cannot be used with COUNT(*)'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 2,
     explanation: '`WHERE` filters individual rows before grouping, while `HAVING` filters aggregated group records. `HAVING COUNT(*) >= 2` restricts output to departments having 2 or more student records.',
     hint: 'HAVING is used to filter groups created by the GROUP BY clause.'
   },
@@ -698,12 +698,12 @@ WHERE StudentName LIKE 'K__a%';`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'A list containing exactly 2 record tuples',
       'A list containing all 3 record tuples',
       'An integer count 2',
-      'A single record tuple'
+      'A single record tuple',
+      'A list containing exactly 2 record tuples'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 3,
     explanation: '`fetchmany(size)` fetches the next set of rows of a query result, returning a list of tuples up to `size` (here 2).',
     hint: 'fetchmany(size) limits the returned records to the requested number.'
   },
@@ -725,12 +725,12 @@ print("Exit Status =", status)`,
     type: 'multiple_choice',
     points: 3,
     options: [
-      'Exit Status = 0',
       'Exit Status = 1',
+      'Exit Status = 0',
       'Exit Status = -1',
       'Exit Status = 200'
     ],
-    correctOptionIndex: 0,
+    correctOptionIndex: 1,
     explanation: 'In operating systems and POSIX/Windows CLI tools, an exit status of 0 represents successful execution with zero errors.',
     hint: 'In shell systems, 0 indicates success, non-zero indicates an error.'
   },

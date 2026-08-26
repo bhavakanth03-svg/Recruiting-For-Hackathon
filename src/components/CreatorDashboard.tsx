@@ -40,7 +40,12 @@ import {
   Trash2,
   AlertTriangle,
   Database,
-  ShieldAlert
+  ShieldAlert,
+  Users,
+  Activity,
+  TrendingUp,
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CandidateSubmission, EvaluationRubric, Question } from '../types';
@@ -513,30 +518,167 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. COHORT SUMMARY STATS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Candidates</span>
-          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{totalCount}</div>
-          <span className="text-[11px] text-indigo-600 dark:text-indigo-400">All registered devices</span>
-        </div>
+      {/* 2. REAL-TIME COHORT SUMMARY CARD */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-2xl p-5 sm:p-6 lg:p-7">
+        {/* Ambient background accents */}
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 -mb-8 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
-        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Live Taking Test</span>
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">{inProgressCount}</div>
-          <span className="text-[11px] text-sky-500">Active session sync</span>
-        </div>
+        <div className="relative z-10 flex flex-col gap-6">
+          {/* Header row with live status */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
+                <Activity className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    Live Assessment Intelligence
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    REAL-TIME STREAM
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Live cohort diagnostics, scoring analytics, and pending evaluation queue
+                </p>
+              </div>
+            </div>
 
-        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Submitted & Ready</span>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{submittedCount}</div>
-          <span className="text-[11px] text-amber-500">Awaiting scoring</span>
-        </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Last updated: just now</span>
+            </div>
+          </div>
 
-        <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Evaluated & Verified</span>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{evaluatedCount}</div>
-          <span className="text-[11px] text-emerald-500">Leaderboard published</span>
+          {/* Core 3 Metrics Highlight Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+            {/* Metric 1: Total Active Candidates */}
+            <div className="relative rounded-2xl bg-slate-950/70 border border-slate-800/90 p-4 sm:p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-cyber-mono">
+                    Total Active Candidates
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
+                    {inProgressCount}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">
+                    / {totalCount} enrolled
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {inProgressCount > 0
+                    ? `${inProgressCount} candidate${inProgressCount > 1 ? 's' : ''} currently answering questions live`
+                    : 'No candidates currently in an active test session'}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span className="text-sky-400 flex items-center gap-1 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  {inProgressCount > 0 ? 'Live Session Active' : 'Idle / Ready for Attendees'}
+                </span>
+                <button
+                  onClick={() => setFilterStatus('in_progress')}
+                  className="text-slate-400 hover:text-cyan-300 font-semibold transition-colors cursor-pointer"
+                >
+                  View Active →
+                </button>
+              </div>
+            </div>
+
+            {/* Metric 2: Average Assessment Score */}
+            <div className="relative rounded-2xl bg-slate-950/70 border border-slate-800/90 p-4 sm:p-5 flex flex-col justify-between hover:border-indigo-500/40 transition-all group">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-cyber-mono">
+                    Average Assessment Score
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                    <BarChart3 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-mono">
+                    {avgScore}
+                  </span>
+                  <span className="text-xs font-bold text-indigo-400 font-mono">
+                    / 100 PTS
+                  </span>
+                </div>
+                <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(0, avgScore))}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {evaluatedCount > 0
+                    ? `Calculated across ${evaluatedCount} evaluated submission${evaluatedCount > 1 ? 's' : ''}`
+                    : 'Awaiting initial candidate evaluations'}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span className="text-indigo-300 font-medium">
+                  {evaluatedScores.length > 0 ? `Top Score: ${Math.max(...evaluatedScores)}/100` : 'No scores yet'}
+                </span>
+                <button
+                  onClick={() => setFilterStatus('evaluated')}
+                  className="text-slate-400 hover:text-indigo-300 font-semibold transition-colors cursor-pointer"
+                >
+                  View Graded ({evaluatedCount}) →
+                </button>
+              </div>
+            </div>
+
+            {/* Metric 3: Submissions Pending Evaluation */}
+            <div className="relative rounded-2xl bg-slate-950/70 border border-slate-800/90 p-4 sm:p-5 flex flex-col justify-between hover:border-amber-500/40 transition-all group">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-cyber-mono">
+                    Pending Evaluation
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-amber-400 tracking-tight font-mono">
+                    {submittedCount}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400">
+                    submission{submittedCount !== 1 ? 's' : ''} awaiting review
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {submittedCount > 0
+                    ? `${submittedCount} submitted test${submittedCount > 1 ? 's' : ''} ready for AI & human rubric evaluation`
+                    : 'No submissions waiting in the evaluation queue'}
+                </p>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span className={`font-semibold flex items-center gap-1 ${submittedCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {submittedCount > 0 ? '⚠️ Action Required' : '✅ Queue Clear'}
+                </span>
+                <button
+                  onClick={() => setFilterStatus('pending')}
+                  className="text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+                >
+                  Review Queue ({submittedCount}) →
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
