@@ -473,21 +473,23 @@ app.post('/api/candidates/check-profile', (req, res) => {
   const normPhone = (phone || '').replace(/\D/g, '');
 
   const existing = candidates.find((c) => {
-    if (candidateId && c.id === candidateId && (c.status === 'submitted' || c.status === 'evaluated')) {
-      return true;
-    }
-    if (normEmail && c.details.email && c.details.email.trim().toLowerCase() === normEmail && (c.status === 'submitted' || c.status === 'evaluated')) {
-      return true;
-    }
-    if (normPhone && c.details.phone) {
+    const isMatchingId = Boolean(candidateId && c.id === candidateId);
+    const isMatchingEmail = Boolean(normEmail && c.details?.email && c.details.email.trim().toLowerCase() === normEmail);
+    let isMatchingPhone = false;
+    if (normPhone && c.details?.phone) {
       const candPhoneNorm = c.details.phone.replace(/\D/g, '');
       if (candPhoneNorm && candPhoneNorm.length >= 7 && (candPhoneNorm === normPhone || candPhoneNorm.endsWith(normPhone) || normPhone.endsWith(candPhoneNorm))) {
-        if (c.status === 'submitted' || c.status === 'evaluated') {
-          return true;
-        }
+        isMatchingPhone = true;
       }
     }
-    return false;
+    const isMatch = isMatchingId || isMatchingEmail || isMatchingPhone;
+    if (!isMatch) return false;
+
+    // If candidate has allowRewrite, match them immediately
+    if (c.allowRewrite) return true;
+
+    // Otherwise match if submitted or evaluated
+    return c.status === 'submitted' || c.status === 'evaluated';
   });
 
   if (existing) {
@@ -570,6 +572,9 @@ app.post('/api/candidates/grant-rewrite', (req, res) => {
       submissionReason: 'Rewrite permitted by Creator'
     };
 
+    saveCandidatesToDisk(candidates);
+    saveCandidateToSupabaseOnServer(candidates[index]);
+
     broadcastEvent('CANDIDATE_PROGRESS_UPDATED', {
       candidate: candidates[index],
       candidateId: candidates[index].id,
@@ -618,6 +623,8 @@ app.post('/api/candidates/submit', (req, res) => {
     return false;
   });
 
+  const wasRewrite = existingIndex >= 0 && Boolean(candidates[existingIndex]?.allowRewrite);
+
   let finalCandidate: CandidateSubmission;
 
   if (existingIndex >= 0) {
@@ -629,12 +636,13 @@ app.post('/api/candidates/submit', (req, res) => {
         ...candidates[existingIndex].details,
         ...details
       },
-      status: candidates[existingIndex].status === 'evaluated' ? 'evaluated' : 'submitted',
-      answers: submissionData.answers || candidates[existingIndex].answers || [],
-      submittedAt: candidates[existingIndex].submittedAt || now,
-      timeSpentSeconds: submissionData.timeSpentSeconds !== undefined ? submissionData.timeSpentSeconds : (candidates[existingIndex].timeSpentSeconds || 1800),
-      tabSwitchDetected: submissionData.tabSwitchDetected ?? candidates[existingIndex].tabSwitchDetected,
-      submissionReason: submissionData.submissionReason || candidates[existingIndex].submissionReason
+      status: 'submitted',
+      allowRewrite: false,
+      answers: submissionData.answers || [],
+      submittedAt: now,
+      timeSpentSeconds: submissionData.timeSpentSeconds !== undefined ? submissionData.timeSpentSeconds : 1800,
+      tabSwitchDetected: submissionData.tabSwitchDetected ?? false,
+      submissionReason: submissionData.submissionReason || (wasRewrite ? 'Candidate submitted after Creator rewrite authorization' : 'Standard candidate submission')
     };
     candidates[existingIndex] = finalCandidate;
   } else {
@@ -643,12 +651,13 @@ app.post('/api/candidates/submit', (req, res) => {
       candidateCode: submissionData.candidateCode || CANDIDATE_ACCESS_CODE,
       details,
       status: 'submitted',
+      allowRewrite: false,
       answers: submissionData.answers || [],
       startedAt: submissionData.startedAt || now,
       submittedAt: now,
       timeSpentSeconds: submissionData.timeSpentSeconds || 1800,
-      tabSwitchDetected: submissionData.tabSwitchDetected,
-      submissionReason: submissionData.submissionReason
+      tabSwitchDetected: submissionData.tabSwitchDetected ?? false,
+      submissionReason: submissionData.submissionReason || 'Standard candidate submission'
     };
     candidates.unshift(finalCandidate);
   }
@@ -664,7 +673,7 @@ app.post('/api/candidates/submit', (req, res) => {
     });
   }
 
-  if (!finalCandidate.evaluation) {
+  if (wasRewrite || !finalCandidate.evaluation) {
     const defaultDesign = 14;
     const defaultFunc = 14;
     const totalScore = Math.min(100, autoMcqScore + defaultDesign + defaultFunc);
@@ -683,8 +692,8 @@ app.post('/api/candidates/submit', (req, res) => {
       totalScore,
       grade,
       badge: totalScore >= 90 ? 'State Rank Gold' : 'TN CS Certified Scholar',
-      feedback: 'Assessment submitted. Evaluator review pending for Question 25.',
-      internalNotes: 'Auto-graded upon candidate submission.',
+      feedback: wasRewrite ? 'Rewrite assessment submitted. Evaluator review pending for Question 25.' : 'Assessment submitted. Evaluator review pending for Question 25.',
+      internalNotes: wasRewrite ? 'Auto-graded upon rewrite candidate submission.' : 'Auto-graded upon candidate submission.',
       evaluatedAt: now,
       evaluatedBy: 'The Crucible Automated Engine',
       isPublishedToLeaderboard: true
