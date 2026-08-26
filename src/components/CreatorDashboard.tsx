@@ -52,7 +52,12 @@ import {
   sendEmailViaGmail,
   getGmailAccessToken
 } from '../lib/gmail';
-import { fetchCandidateById, grantCandidateRewrite } from '../lib/api';
+import {
+  fetchCandidateById,
+  grantCandidateRewrite,
+  seedCohortCandidates,
+  restoreAttendedCandidates
+} from '../lib/api';
 import { SUPABASE_URL, requestSupabaseSnapshot, sendSupabaseSnapshot } from '../lib/supabase';
 
 interface CreatorDashboardProps {
@@ -122,6 +127,38 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
       onRefresh();
     } finally {
       setIsGrantingRewrite(false);
+    }
+  };
+
+  const [isSeedingCohort, setIsSeedingCohort] = useState(false);
+  const [cohortSuccessMessage, setCohortSuccessMessage] = useState<string | null>(null);
+
+  const handleSeedCohort = async (count: number = 100) => {
+    setIsSeedingCohort(true);
+    try {
+      const res = await seedCohortCandidates(count);
+      setCohortSuccessMessage(res.message);
+      onRefresh();
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+      setTimeout(() => setCohortSuccessMessage(null), 6000);
+    } catch (err) {
+      console.warn('Error expanding cohort:', err);
+    } finally {
+      setIsSeedingCohort(false);
+    }
+  };
+
+  const handleRestoreAttended = async () => {
+    setIsSeedingCohort(true);
+    try {
+      const res = await restoreAttendedCandidates();
+      setCohortSuccessMessage(res.message);
+      onRefresh();
+      setTimeout(() => setCohortSuccessMessage(null), 5000);
+    } catch (err) {
+      console.warn('Error restoring attended candidates:', err);
+    } finally {
+      setIsSeedingCohort(false);
     }
   };
 
@@ -532,6 +569,74 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({
             <span>Force Cloud Realtime Sync</span>
           </button>
         </div>
+      </div>
+
+      {/* 2.6 COHORT CAPACITY (100 PARTICIPANTS SUPPORTED) & SCALE CONTROLS */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-cyan-400 font-cyber-mono">
+                Cohort Scale & Capacity
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+                100 Candidates Supported
+              </span>
+              {candidates.length >= 100 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                  Full 100 Cohort Active
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Active Cohort: <span className="text-indigo-600 dark:text-cyan-400 font-mono font-bold">{candidates.length}</span> / 100 Enrolled Candidate Records
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl font-rajdhani">
+              The Crucible easily scales up to 100+ concurrent candidate assessments with real-time response isolation, individual rewrite permissions, and state board merit ranking.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              onClick={() => handleSeedCohort(100)}
+              disabled={isSeedingCohort}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white shadow-md shadow-indigo-500/20 disabled:opacity-50 transition-all cursor-pointer"
+              title="Populate test cohort with up to 100 candidates with realistic scores and Tamil Nadu school profiles"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isSeedingCohort ? 'animate-spin' : ''}`} />
+              <span>{isSeedingCohort ? 'Populating Cohort...' : 'Populate 100 Candidates'}</span>
+            </button>
+
+            <button
+              onClick={handleRestoreAttended}
+              disabled={isSeedingCohort}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-50 transition-all cursor-pointer"
+              title="Reset candidate list back to the core 13 attended candidates"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Restore Attended (13)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Visual Progress Bar to 100 */}
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-indigo-500 via-cyan-500 to-emerald-400 transition-all duration-500 rounded-full"
+            style={{ width: `${Math.min(100, Math.max(8, (candidates.length / 100) * 100))}%` }}
+          />
+        </div>
+
+        {cohortSuccessMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 font-medium"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>{cohortSuccessMessage}</span>
+          </motion.div>
+        )}
       </div>
 
       {/* 3. SEARCH & FILTER BAR */}

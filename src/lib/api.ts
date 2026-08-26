@@ -4,7 +4,8 @@ import {
   CANDIDATE_ACCESS_CODE,
   DEFAULT_QUESTIONS,
   INITIAL_CANDIDATE_SUBMISSIONS,
-  INITIAL_EMAIL_NOTIFICATIONS
+  INITIAL_EMAIL_NOTIFICATIONS,
+  generateCohortCandidates
 } from '../data/defaultData';
 import {
   fetchCandidatesFromSupabase,
@@ -646,6 +647,65 @@ export async function clearAllCandidatesData(): Promise<{ success: boolean; mess
   } catch {}
 
   return { success: true, message: 'All candidate logs deleted. Fresh slate initialized for live event.' };
+}
+
+/**
+ * Populate cohort with up to 100 realistic attended candidates
+ */
+export async function seedCohortCandidates(targetCount: number = 100): Promise<{ success: boolean; candidates: CandidateSubmission[]; message: string }> {
+  const generated = generateCohortCandidates(targetCount);
+
+  // 1. Try server seed
+  try {
+    const res = await fetch(`${API_BASE}/candidates/seed-cohort`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: targetCount })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log('Server cohort seeded:', data);
+    }
+  } catch {}
+
+  // 2. Persist to localStorage
+  try {
+    const existingRaw = localStorage.getItem('evalpulse_all_candidates');
+    const existingList: CandidateSubmission[] = existingRaw ? JSON.parse(existingRaw) : [];
+    const merged = mergeCandidateLists(existingList, generated);
+    localStorage.setItem('evalpulse_all_candidates', JSON.stringify(merged));
+  } catch {}
+
+  // 3. Batch save to Supabase
+  try {
+    await saveCandidateBatchToSupabase(generated);
+  } catch {}
+
+  return {
+    success: true,
+    candidates: generated,
+    message: `Cohort successfully expanded up to ${generated.length} candidates (100 Capacity Supported).`
+  };
+}
+
+/**
+ * Restore standard attended candidates
+ */
+export async function restoreAttendedCandidates(): Promise<{ success: boolean; candidates: CandidateSubmission[]; message: string }> {
+  try {
+    await fetch(`${API_BASE}/candidates/restore-attended`, { method: 'POST' });
+  } catch {}
+
+  try {
+    localStorage.setItem('evalpulse_all_candidates', JSON.stringify(INITIAL_CANDIDATE_SUBMISSIONS));
+    await saveCandidateBatchToSupabase(INITIAL_CANDIDATE_SUBMISSIONS);
+  } catch {}
+
+  return {
+    success: true,
+    candidates: INITIAL_CANDIDATE_SUBMISSIONS,
+    message: `Restored ${INITIAL_CANDIDATE_SUBMISSIONS.length} attended candidates.`
+  };
 }
 
 export async function fetchEmails(): Promise<EmailNotification[]> {

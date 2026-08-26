@@ -1,4 +1,4 @@
-import { Question, CandidateSubmission, EmailNotification } from '../types';
+import { Question, CandidateSubmission, CandidateAnswer, AssessmentStatus, EmailNotification } from '../types';
 
 export const CREATOR_ACCESS_CODE = 'I_Love_Honey';
 export const CANDIDATE_ACCESS_CODE = '#B3L2H100%';
@@ -776,7 +776,820 @@ body {
   }
 ];
 
-export const INITIAL_CANDIDATE_SUBMISSIONS: CandidateSubmission[] = [];
+// Pre-populated Attended Tamil Nadu 12th Computer Science Candidates
+export const INITIAL_CANDIDATE_SUBMISSIONS: CandidateSubmission[] = [
+  {
+    id: 'cand-tn-001',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Natish R',
+      email: 'natish1349@gmail.com',
+      phone: '9943404409',
+      role: '12th Computer Science Scholar',
+      schoolName: 'Tamil Nadu Higher Secondary School, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'A modern cyber-security learning portal for high school students in Tamil Nadu, featuring interactive terminal quizzes and threat defense simulations.',
+        htmlCode: '<div class="p-8 text-center bg-slate-900 text-white rounded-3xl"><h1 class="text-3xl font-bold text-cyan-400">CyberShield TN</h1><p class="text-slate-300 mt-2">Interactive Cyber Defense Learning Engine</p></div>',
+        cssCode: 'body { background: #020617; font-family: sans-serif; }',
+        jsCode: 'console.log("CyberShield TN Loaded");'
+      }
+    ],
+    startedAt: '2026-08-25T08:30:00.000Z',
+    submittedAt: '2026-08-25T09:18:14.000Z',
+    timeSpentSeconds: 2894,
+    evaluation: {
+      mcqScore: 72,
+      websitePromptDesign: 14,
+      websitePromptFunctionality: 14,
+      totalScore: 100,
+      grade: 'A+',
+      badge: 'State Rank 1 Gold',
+      feedback: 'Flawless performance across all 24 C++, Python, and SQL State Board MCQs with an outstanding cyber defense web portal prompt.',
+      evaluatedAt: '2026-08-25T09:20:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-002',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Priya Sundaram',
+      email: 'priya.sundaram@vidyamandir.edu.in',
+      phone: '9840123456',
+      role: '12th Computer Science',
+      schoolName: 'Vidya Mandir Senior Secondary School, Mylapore, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 1 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu Smart Agriculture Portal connecting farmers with direct weather alerts, market prices, and soil telemetry visualizers.',
+        htmlCode: '<div class="p-6 bg-emerald-950 text-white rounded-2xl text-center"><h1 class="text-2xl font-bold text-emerald-400">Uzhavan Smart AgTech</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T08:45:00.000Z',
+    submittedAt: '2026-08-25T09:32:00.000Z',
+    timeSpentSeconds: 2820,
+    evaluation: {
+      mcqScore: 69,
+      websitePromptDesign: 15,
+      websitePromptFunctionality: 14,
+      totalScore: 98,
+      grade: 'A+',
+      badge: 'State Rank 2 Silver',
+      feedback: 'Excellent algorithmic reasoning and well-structured Agricultural Technology portal architecture.',
+      evaluatedAt: '2026-08-25T09:35:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-003',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Kavin Kumar S',
+      email: 'kavinkumar.tvs@gmail.com',
+      phone: '9443219870',
+      role: '12th Computer Science',
+      schoolName: 'TVS Higher Secondary School, Madurai',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 1 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Interactive Chandrayaan & Space Exploration live 3D orbital trajectory simulation and educational mission tracker.',
+        htmlCode: '<div class="p-8 bg-indigo-950 text-white rounded-3xl"><h1 class="text-3xl font-bold text-indigo-400">ISRO Deep Space Hub</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:00:00.000Z',
+    submittedAt: '2026-08-25T09:47:00.000Z',
+    timeSpentSeconds: 2820,
+    evaluation: {
+      mcqScore: 69,
+      websitePromptDesign: 14,
+      websitePromptFunctionality: 13,
+      totalScore: 96,
+      grade: 'A+',
+      badge: 'State Rank 3 Bronze',
+      feedback: 'Outstanding mastery of Python data structures and SQL relational database queries.',
+      evaluatedAt: '2026-08-25T09:50:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-004',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Ananya Raman',
+      email: 'ananya.raman@psbb.ac.in',
+      phone: '9791054321',
+      role: '12th Computer Science',
+      schoolName: 'PSBB Millennium School, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu Heritage & Digital Palm Leaf Manuscript Archive with high-resolution viewer and Tamil phonetic search.',
+        htmlCode: '<div class="p-8 bg-amber-950 text-white rounded-3xl"><h1 class="text-3xl font-bold text-amber-400">Tamil Classical Digital Archive</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:10:00.000Z',
+    submittedAt: '2026-08-25T09:54:00.000Z',
+    timeSpentSeconds: 2640,
+    evaluation: {
+      mcqScore: 72,
+      websitePromptDesign: 13,
+      websitePromptFunctionality: 10,
+      totalScore: 95,
+      grade: 'A+',
+      badge: 'State Top 5 Honors',
+      feedback: 'Perfect MCQ marks and creative Tamil cultural web preservation application.',
+      evaluatedAt: '2026-08-25T09:58:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-005',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Dhanush Karthik',
+      email: 'dhanush.karthik@stjoseph.edu.in',
+      phone: '9842187654',
+      role: '12th Computer Science',
+      schoolName: "St. Joseph's Higher Secondary School, Trichy",
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 1 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Autonomous Emergency Hospital Bed & Blood Donor Real-time Matching System across Tamil Nadu districts.',
+        htmlCode: '<div class="p-6 bg-red-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-red-400">TN Emergency Medical Grid</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:15:00.000Z',
+    submittedAt: '2026-08-25T10:02:00.000Z',
+    timeSpentSeconds: 2820,
+    evaluation: {
+      mcqScore: 69,
+      websitePromptDesign: 13,
+      websitePromptFunctionality: 12,
+      totalScore: 94,
+      grade: 'A+',
+      badge: 'State Top 10 Honors',
+      feedback: 'Very solid comprehension of OOP in C++ and SQLite operations.',
+      evaluatedAt: '2026-08-25T10:05:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-006',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Swetha Murali',
+      email: 'swetha.m@cluny.edu.in',
+      phone: '9629143890',
+      role: '12th Computer Science',
+      schoolName: 'Cluny Convent Higher Secondary School, Salem',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 1 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Digital Examination & Public Exam Revision Tracker for 10th and 12th State Board syllabus.',
+        htmlCode: '<div class="p-6 bg-purple-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-purple-400">TN Pariksha Portal</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:20:00.000Z',
+    submittedAt: '2026-08-25T10:05:00.000Z',
+    timeSpentSeconds: 2700,
+    evaluation: {
+      mcqScore: 69,
+      websitePromptDesign: 12,
+      websitePromptFunctionality: 11,
+      totalScore: 92,
+      grade: 'A',
+      badge: 'State CS Distinction',
+      feedback: 'Consistent score with great clarity in SQL syntax and Python file I/O operations.',
+      evaluatedAt: '2026-08-25T10:10:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-007',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Vignesh Balaji',
+      email: 'vignesh.balaji@coimbatoremodel.edu.in',
+      phone: '9843056789',
+      role: '12th Computer Science',
+      schoolName: 'Government Model Higher Secondary School, Coimbatore',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu Renewable Solar Grid monitoring dashboard for high schools.',
+        htmlCode: '<div class="p-6 bg-yellow-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-yellow-400">SolarTN High School Grid</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:30:00.000Z',
+    submittedAt: '2026-08-25T10:15:00.000Z',
+    timeSpentSeconds: 2700,
+    evaluation: {
+      mcqScore: 72,
+      websitePromptDesign: 10,
+      websitePromptFunctionality: 8,
+      totalScore: 90,
+      grade: 'A',
+      badge: 'State CS Distinction',
+      feedback: 'Full marks in MCQs; website prompt covers clean solar monitoring metrics.',
+      evaluatedAt: '2026-08-25T10:20:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-008',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Deepika Thangaraj',
+      email: 'deepika.thangaraj@srvboys.edu.in',
+      phone: '9443598712',
+      role: '12th Computer Science',
+      schoolName: 'SRV Boys Higher Secondary School, Rasipuram',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 1 },
+      { questionId: 'q24', selectedOptionIndex: 1 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu State Board Computer Science Algorithm Visualizer (Bubble Sort, Linear Search, Binary Search).',
+        htmlCode: '<div class="p-6 bg-cyan-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-cyan-400">TN AlgoLab Interactive</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:40:00.000Z',
+    submittedAt: '2026-08-25T10:28:00.000Z',
+    timeSpentSeconds: 2880,
+    evaluation: {
+      mcqScore: 66,
+      websitePromptDesign: 12,
+      websitePromptFunctionality: 10,
+      totalScore: 88,
+      grade: 'B+',
+      badge: 'State CS Certified',
+      feedback: 'Very good conceptual knowledge on control flow, loops, and CSV processing.',
+      evaluatedAt: '2026-08-25T10:30:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-009',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Rahul Sundaram',
+      email: 'rahul.sundaram@davchennai.edu.in',
+      phone: '9840987650',
+      role: '12th Computer Science',
+      schoolName: 'DAV Boys Senior Secondary School, Gopalapuram, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'evaluated',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 1 },
+      { questionId: 'q23', selectedOptionIndex: 1 },
+      { questionId: 'q24', selectedOptionIndex: 1 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'High School Code Runner & Sandbox for C++ and Python syntax verification.',
+        htmlCode: '<div class="p-6 bg-slate-900 text-white rounded-2xl"><h1 class="text-2xl font-bold text-sky-400">TN CodeSandbox</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T09:45:00.000Z',
+    submittedAt: '2026-08-25T10:33:00.000Z',
+    timeSpentSeconds: 2880,
+    evaluation: {
+      mcqScore: 63,
+      websitePromptDesign: 12,
+      websitePromptFunctionality: 10,
+      totalScore: 85,
+      grade: 'B+',
+      badge: 'State CS Certified',
+      feedback: 'Good problem solving skills with solid Python function scoping understanding.',
+      evaluatedAt: '2026-08-25T10:35:00.000Z',
+      evaluatedBy: 'State Board Technical Evaluator',
+      isPublishedToLeaderboard: true
+    }
+  },
+  {
+    id: 'cand-tn-010',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Harini Velu',
+      email: 'harini.velu@stbedes.edu.in',
+      phone: '9884102938',
+      role: '12th Computer Science',
+      schoolName: "St. Bede's Anglo Indian HSS, Santhome, Chennai",
+      standard: '12th Computer Science'
+    },
+    status: 'submitted',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu Smart Public Library book search and digital catalogue with reservation alerts.',
+        htmlCode: '<div class="p-6 bg-teal-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-teal-400">Connemara e-Library Portal</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T10:00:00.000Z',
+    submittedAt: '2026-08-25T10:48:00.000Z',
+    timeSpentSeconds: 2880
+  },
+  {
+    id: 'cand-tn-011',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Saravanan P',
+      email: 'saravanan.p@chennaigirls.edu.in',
+      phone: '9789012345',
+      role: '12th Computer Science',
+      schoolName: 'Govt Higher Secondary School, Ashok Nagar, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'submitted',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 },
+      { questionId: 'q16', selectedOptionIndex: 0 },
+      { questionId: 'q17', selectedOptionIndex: 0 },
+      { questionId: 'q18', selectedOptionIndex: 0 },
+      { questionId: 'q19', selectedOptionIndex: 0 },
+      { questionId: 'q20', selectedOptionIndex: 0 },
+      { questionId: 'q21', selectedOptionIndex: 0 },
+      { questionId: 'q22', selectedOptionIndex: 0 },
+      { questionId: 'q23', selectedOptionIndex: 0 },
+      { questionId: 'q24', selectedOptionIndex: 0 },
+      {
+        questionId: 'q25',
+        websitePrompt: 'Tamil Nadu Heritage Temple Architecture and Chola Bronze Sculptures Virtual Tour.',
+        htmlCode: '<div class="p-6 bg-amber-950 text-white rounded-2xl"><h1 class="text-2xl font-bold text-amber-400">Thanjavur Brihadisvara 3D Tour</h1></div>'
+      }
+    ],
+    startedAt: '2026-08-25T10:10:00.000Z',
+    submittedAt: '2026-08-25T10:55:00.000Z',
+    timeSpentSeconds: 2700
+  },
+  {
+    id: 'cand-tn-012',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Keerthana M',
+      email: 'keerthana.m@montfort.edu.in',
+      phone: '9444019283',
+      role: '12th Computer Science',
+      schoolName: 'Montfort Anglo Indian Higher Secondary School, Yercaud',
+      standard: '12th Computer Science'
+    },
+    status: 'in_progress',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 },
+      { questionId: 'q9', selectedOptionIndex: 0 },
+      { questionId: 'q10', selectedOptionIndex: 0 },
+      { questionId: 'q11', selectedOptionIndex: 0 },
+      { questionId: 'q12', selectedOptionIndex: 0 },
+      { questionId: 'q13', selectedOptionIndex: 0 },
+      { questionId: 'q14', selectedOptionIndex: 0 },
+      { questionId: 'q15', selectedOptionIndex: 0 }
+    ],
+    startedAt: '2026-08-25T10:30:00.000Z',
+    timeSpentSeconds: 1540
+  },
+  {
+    id: 'cand-tn-013',
+    candidateCode: 'CANDIDATE-2025',
+    details: {
+      fullName: 'Sanjay Ram',
+      email: 'sanjay.ram@donbosco.edu.in',
+      phone: '9840512340',
+      role: '12th Computer Science',
+      schoolName: 'Don Bosco Matriculation HSS, Egmore, Chennai',
+      standard: '12th Computer Science'
+    },
+    status: 'in_progress',
+    answers: [
+      { questionId: 'q1', selectedOptionIndex: 0 },
+      { questionId: 'q2', selectedOptionIndex: 0 },
+      { questionId: 'q3', selectedOptionIndex: 0 },
+      { questionId: 'q4', selectedOptionIndex: 0 },
+      { questionId: 'q5', selectedOptionIndex: 0 },
+      { questionId: 'q6', selectedOptionIndex: 0 },
+      { questionId: 'q7', selectedOptionIndex: 0 },
+      { questionId: 'q8', selectedOptionIndex: 0 }
+    ],
+    startedAt: '2026-08-25T10:35:00.000Z',
+    timeSpentSeconds: 960
+  }
+];
+
+/**
+ * Generates a full cohort of up to 100 realistic candidate submissions
+ * across various Tamil Nadu schools, scores, and assessment statuses.
+ */
+export function generateCohortCandidates(targetCount: number = 100): CandidateSubmission[] {
+  const tnSchools = [
+    'Tamil Nadu Higher Secondary School, Chennai',
+    'Vidya Mandir Senior Secondary School, Mylapore, Chennai',
+    'TVS Higher Secondary School, Madurai',
+    'PSBB Millennium School, Chennai',
+    "St. Joseph's Higher Secondary School, Trichy",
+    'Cluny Convent Higher Secondary School, Salem',
+    'Government Model Higher Secondary School, Coimbatore',
+    'SRV Boys Higher Secondary School, Rasipuram',
+    'DAV Boys Senior Secondary School, Gopalapuram, Chennai',
+    "St. Bede's Anglo Indian HSS, Santhome, Chennai",
+    'Govt Higher Secondary School, Ashok Nagar, Chennai',
+    'Montfort Anglo Indian Higher Secondary School, Yercaud',
+    'Don Bosco Matriculation HSS, Egmore, Chennai',
+    'SBOA School & Junior College, Anna Nagar, Chennai',
+    'Lady Andal Venkatasubba Rao School, Chetpet, Chennai',
+    'Chinmaya Vidyalaya Higher Secondary School, Taylors Road',
+    'Bala Vidya Mandir Senior Secondary School, Adyar, Chennai',
+    'St. Xavier Higher Secondary School, Palayamkottai, Tirunelveli',
+    'Kendriya Vidyalaya CLRI, Adyar, Chennai',
+    'Padma Seshadri Bala Bhavan Senior Secondary School, Nungambakkam'
+  ];
+
+  const firstNames = [
+    'Aarav', 'Abhinav', 'Aditi', 'Ajay', 'Akash', 'Amrita', 'Anand', 'Ananya', 'Anirudh', 'Anjali',
+    'Aravind', 'Archana', 'Arjun', 'Ashwin', 'Balaji', 'Bhavani', 'Chandran', 'Deepa', 'Deepak', 'Deepika',
+    'Dhanush', 'Divya', 'Ganesh', 'Gautham', 'Geetha', 'Gokul', 'Harini', 'Harish', 'Janani', 'Karthik',
+    'Kavitha', 'Kavin', 'Keerthana', 'Kishore', 'Krishnan', 'Lakshmi', 'Madhavan', 'Manoj', 'Meena', 'Mithun',
+    'Muralidharan', 'Nandhini', 'Naresh', 'Naveen', 'Nithya', 'Nivedha', 'Pavithra', 'Pooja', 'Pranav', 'Prasad',
+    'Prashanth', 'Priya', 'Priyanka', 'Raghav', 'Rahul', 'Rajesh', 'Rakesh', 'Ramachandran', 'Ramesh', 'Ranjith',
+    'Rithika', 'Rohan', 'Rohit', 'Sahana', 'Sai', 'Sakthi', 'Samriddhi', 'Sanjay', 'Saravanan', 'Sasikumar',
+    'Sathish', 'Selvam', 'Shalini', 'Shankar', 'Shreya', 'Shruthi', 'Siddharth', 'Sindhu', 'Sneha', 'Soundarya',
+    'Sowmya', 'Srikanth', 'Srinivasan', 'Subhash', 'Sudha', 'Sujatha', 'Suresh', 'Swaminathan', 'Swetha', 'Tamilarasan',
+    'Tanvi', 'Tarun', 'Thangavel', 'Udhaya', 'Vaishnavi', 'Varun', 'Vasanth', 'Vignesh', 'Vijay', 'Vishnu'
+  ];
+
+  const lastInitials = ['A', 'B', 'C', 'D', 'G', 'K', 'M', 'N', 'P', 'R', 'S', 'T', 'V'];
+
+  const results: CandidateSubmission[] = [...INITIAL_CANDIDATE_SUBMISSIONS];
+  const existingEmails = new Set(results.map((c) => c.details.email.toLowerCase()));
+
+  let index = results.length + 1;
+  while (results.length < targetCount && index <= 200) {
+    const fName = firstNames[(index * 7) % firstNames.length];
+    const initial = lastInitials[(index * 11) % lastInitials.length];
+    const fullName = `${fName} ${initial}`;
+    const email = `${fName.toLowerCase()}.${initial.toLowerCase()}${index}@tnschools.edu.in`;
+    const school = tnSchools[index % tnSchools.length];
+    const phone = `9840${String(100000 + index * 37).slice(-6)}`;
+
+    if (existingEmails.has(email)) {
+      index++;
+      continue;
+    }
+    existingEmails.add(email);
+
+    // Compute realistic score distribution (70% Evaluated with 75-99 marks, 15% Submitted, 15% In-Progress)
+    const isEvaluated = index <= targetCount * 0.75;
+    const isSubmitted = !isEvaluated && index <= targetCount * 0.90;
+    const status: AssessmentStatus = isEvaluated ? 'evaluated' : isSubmitted ? 'submitted' : 'in_progress';
+
+    const correctCount = Math.max(16, Math.min(24, 24 - (index % 7)));
+    const answers: CandidateAnswer[] = [];
+    for (let q = 0; q < 24; q++) {
+      const qId = `q${q + 1}`;
+      const isCorrect = q < correctCount;
+      answers.push({
+        questionId: qId,
+        selectedOptionIndex: isCorrect ? 0 : 1
+      });
+    }
+
+    answers.push({
+      questionId: 'q25',
+      websitePrompt: `Interactive Tamil Nadu 12th Computer Science Web Application #${index} with responsive UI.`,
+      htmlCode: `<div class="p-6 bg-slate-900 text-white rounded-2xl text-center"><h2 class="text-xl font-bold text-cyan-400">TN Tech Project #${index}</h2></div>`
+    });
+
+    const mcqScore = correctCount * 3;
+    const designScore = 12 + (index % 4);
+    const funcScore = 11 + (index % 4);
+    const totalScore = Math.min(100, mcqScore + designScore + funcScore);
+    const grade = totalScore >= 95 ? 'A+' : totalScore >= 90 ? 'A' : totalScore >= 80 ? 'B+' : 'B';
+
+    const candidate: CandidateSubmission = {
+      id: `cand-tn-${String(index).padStart(3, '0')}`,
+      candidateCode: 'CANDIDATE-2025',
+      details: {
+        fullName,
+        email,
+        phone,
+        role: '12th Computer Science',
+        schoolName: school,
+        standard: '12th Computer Science'
+      },
+      status,
+      answers,
+      startedAt: new Date(Date.now() - (index * 180000)).toISOString(),
+      submittedAt: status !== 'in_progress' ? new Date(Date.now() - (index * 120000)).toISOString() : undefined,
+      timeSpentSeconds: 1800 + (index * 17) % 1100,
+      evaluation: isEvaluated ? {
+        mcqScore,
+        websitePromptDesign: designScore,
+        websitePromptFunctionality: funcScore,
+        totalScore,
+        grade,
+        badge: totalScore >= 95 ? 'State Rank Gold' : totalScore >= 90 ? 'State CS Honors' : 'State CS Certified',
+        feedback: `Candidate demonstrated solid mastery in ${school}. Scored ${totalScore}/100.`,
+        evaluatedAt: new Date(Date.now() - (index * 90000)).toISOString(),
+        evaluatedBy: 'State Board Technical Evaluator',
+        isPublishedToLeaderboard: true
+      } : undefined
+    };
+
+    results.push(candidate);
+    index++;
+  }
+
+  return results;
+}
 
 export const INITIAL_EMAIL_NOTIFICATIONS: EmailNotification[] = [];
+
 

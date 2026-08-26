@@ -8,7 +8,8 @@ import {
   CANDIDATE_ACCESS_CODE,
   INITIAL_CANDIDATE_SUBMISSIONS,
   INITIAL_EMAIL_NOTIFICATIONS,
-  DEFAULT_QUESTIONS
+  DEFAULT_QUESTIONS,
+  generateCohortCandidates
 } from './src/data/defaultData.ts';
 import { CandidateSubmission, CandidateAnswer, EmailNotification, LeaderboardEntry, ServerEvent, EvaluationRubric } from './src/types.ts';
 import { mergeCandidateLists, mergeSingleCandidate } from './src/lib/candidateSync.ts';
@@ -53,14 +54,15 @@ function loadSavedCandidates(): CandidateSubmission[] {
     if (fs.existsSync(CANDIDATES_FILE)) {
       const raw = fs.readFileSync(CANDIDATES_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Could not read saved candidates from file:', err);
   }
-  return [];
+  // Initialize with pre-attended candidate submissions
+  return [...INITIAL_CANDIDATE_SUBMISSIONS];
 }
 
 function saveCandidatesToDisk(items: CandidateSubmission[]) {
@@ -868,6 +870,41 @@ app.post('/api/candidates/clear-all', (req, res) => {
   saveCandidatesToDisk([]);
   broadcastEvent('LEADERBOARD_UPDATED', { message: 'All candidate logs deleted' });
   res.json({ success: true, message: 'All candidates wiped successfully' });
+});
+
+// Populate cohort with up to 100 realistic attended candidates
+app.post('/api/candidates/seed-cohort', (req, res) => {
+  const targetCount = Math.min(100, Math.max(10, Number(req.body?.count) || 100));
+  const newCohort = generateCohortCandidates(targetCount);
+  candidates = mergeCandidateLists(candidates, newCohort);
+  saveCandidatesToDisk(candidates);
+
+  // Sync each to Supabase in background
+  newCohort.forEach((c) => {
+    saveCandidateToSupabaseOnServer(c);
+  });
+
+  broadcastEvent('LEADERBOARD_UPDATED', { message: `Cohort populated with ${candidates.length} candidates` });
+  res.json({
+    success: true,
+    totalCandidates: candidates.length,
+    message: `Cohort successfully populated with ${candidates.length} candidates (Capacity: 100+).`
+  });
+});
+
+// Restore pre-attended standard cohort
+app.post('/api/candidates/restore-attended', (req, res) => {
+  candidates = [...INITIAL_CANDIDATE_SUBMISSIONS];
+  saveCandidatesToDisk(candidates);
+  INITIAL_CANDIDATE_SUBMISSIONS.forEach((c) => {
+    saveCandidateToSupabaseOnServer(c);
+  });
+  broadcastEvent('LEADERBOARD_UPDATED', { message: 'Restored attended candidate records' });
+  res.json({
+    success: true,
+    totalCandidates: candidates.length,
+    message: `Restored ${candidates.length} attended candidates.`
+  });
 });
 
 // 8. Email Outbox Logs
