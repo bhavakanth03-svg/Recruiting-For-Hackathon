@@ -46,6 +46,21 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const CANDIDATES_FILE = path.join(DATA_DIR, 'candidates.json');
 
 // Persistent Storage Handlers
+let diskWriteTimer: NodeJS.Timeout | null = null;
+function saveCandidatesToDisk(items: CandidateSubmission[]) {
+  if (diskWriteTimer) clearTimeout(diskWriteTimer);
+  diskWriteTimer = setTimeout(() => {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(CANDIDATES_FILE, JSON.stringify(items, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('Could not write candidates to file:', err);
+    }
+  }, 100);
+}
+
 function loadSavedCandidates(): CandidateSubmission[] {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -54,26 +69,14 @@ function loadSavedCandidates(): CandidateSubmission[] {
     if (fs.existsSync(CANDIDATES_FILE)) {
       const raw = fs.readFileSync(CANDIDATES_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Could not read saved candidates from file:', err);
   }
-  // Initialize with pre-attended candidate submissions
-  return [...INITIAL_CANDIDATE_SUBMISSIONS];
-}
-
-function saveCandidatesToDisk(items: CandidateSubmission[]) {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(CANDIDATES_FILE, JSON.stringify(items, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn('Could not write candidates to file:', err);
-  }
+  return [];
 }
 
 // Helper to upsert a candidate directly to Supabase DB from the server

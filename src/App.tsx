@@ -105,9 +105,10 @@ export default function App() {
   const [workspaceDefaultTab, setWorkspaceDefaultTab] = useState<'drive' | 'contacts' | 'gmail' | 'outbox'>('drive');
 
   // Application Data States
-  const [candidates, setCandidates] = useState<CandidateSubmission[]>(INITIAL_CANDIDATE_SUBMISSIONS);
+  const [candidates, setCandidates] = useState<CandidateSubmission[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [emails, setEmails] = useState<EmailNotification[]>(INITIAL_EMAIL_NOTIFICATIONS);
+  const prevCandidatesJsonRef = useRef<string>('[]');
   const [currentCandidateSubmission, setCurrentCandidateSubmission] = useState<CandidateSubmission | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -172,17 +173,21 @@ export default function App() {
     try {
       const cands = await fetchCandidates(authToken);
       if (Array.isArray(cands)) {
-        // Seed known submissions so existing records don't trigger toasts on load/sync
-        cands.forEach((c) => {
-          if (c.id && (c.status === 'submitted' || c.status === 'evaluated')) {
-            notifiedSubmissionIdsRef.current.add(c.id);
-          }
-        });
-        setCandidates(cands);
-        setLeaderboard(computeLeaderboardFromCandidates(cands));
-        try {
-          localStorage.setItem('evalpulse_all_candidates', JSON.stringify(cands));
-        } catch {}
+        // Fast comparison to avoid unnecessary state updates & re-renders
+        const newJson = JSON.stringify(cands);
+        if (newJson !== prevCandidatesJsonRef.current) {
+          prevCandidatesJsonRef.current = newJson;
+          cands.forEach((c) => {
+            if (c.id && (c.status === 'submitted' || c.status === 'evaluated')) {
+              notifiedSubmissionIdsRef.current.add(c.id);
+            }
+          });
+          setCandidates(cands);
+          setLeaderboard(computeLeaderboardFromCandidates(cands));
+          try {
+            localStorage.setItem('evalpulse_all_candidates', newJson);
+          } catch {}
+        }
       }
 
       const emailList = await fetchEmails();
@@ -198,10 +203,12 @@ export default function App() {
 
   // Active Multi-Device Background Polling & Multi-Event Visibility Sync
   useEffect(() => {
-    // 5-second interval for background sync fallback alongside real-time Supabase push events
+    // 6-second interval for background sync fallback alongside real-time Supabase push events
     const interval = setInterval(() => {
-      loadData();
-    }, 5000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData();
+      }
+    }, 6000);
 
     const handleFocus = () => loadData();
     const handleVisibility = () => {
